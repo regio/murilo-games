@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Murilo's Games</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0a0a1a;
+      color: #e0e0ff;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      min-height: 100vh;
+    }
+
+    header {
+      text-align: center;
+      padding: 60px 20px 30px;
+    }
+
+    header h1 {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: 2px;
+      background: linear-gradient(135deg, #00aaff, #aa44ff);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    header p {
+      color: #8888aa;
+      font-size: 1rem;
+      letter-spacing: 1px;
+    }
+
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 32px;
+      justify-content: center;
+      padding: 40px 40px 80px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: #12122a;
+      border: 1px solid #2a2a4a;
+      border-radius: 16px;
+      width: 260px;
+      padding: 36px 28px 28px;
+      text-align: center;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #00aaff, #aa44ff);
+      border-radius: 16px 16px 0 0;
+    }
+
+    .card:hover {
+      transform: translateY(-6px);
+      border-color: #4444aa;
+      box-shadow: 0 12px 40px rgba(0, 120, 255, 0.2);
+    }
+
+    .icon {
+      font-size: 3.5rem;
+      margin-bottom: 16px;
+      display: block;
+    }
+
+    .card h2 {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .card p {
+      font-size: 0.88rem;
+      color: #8888aa;
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+
+    .play-btn {
+      display: inline-block;
+      padding: 10px 32px;
+      background: linear-gradient(135deg, #0077dd, #6622cc);
+      color: #ffffff;
+      text-decoration: none;
+      border-radius: 30px;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 1px;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .play-btn:hover {
+      opacity: 0.9;
+      transform: scale(1.05);
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-image:
+        radial-gradient(1px 1px at 15% 20%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 40% 60%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 70% 10%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 85% 45%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 25% 80%, rgba(255,255,255,0.35) 0%, transparent 100%),
+        radial-gradient(1px 1px at 60% 35%, rgba(255,255,255,0.25) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 75%, rgba(255,255,255,0.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 5% 50%, rgba(255,255,255,0.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 50% 90%, rgba(255,255,255,0.35) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 33% 42%, rgba(255,255,255,0.5) 0%, transparent 100%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body > * { position: relative; z-index: 1; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>MURILO'S GAMES</h1>
+    <p>Pick a game and play for free</p>
+  </header>
+
+  <main class="grid">
+    <div class="card">
+      <span class="icon">✈️</span>
+      <h2>Sky Squadron</h2>
+      <p>Shoot your way through 100 levels of aerial combat. Unlock planes, buy power-ups, and defeat epic bosses.</p>
+      <a href="/sky" class="play-btn">PLAY</a>
+    </div>
+    <!-- Add more game cards here -->
+  </main>
+</body>
+</html>
