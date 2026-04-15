@@ -1245,58 +1245,101 @@ function updatePlaying() {
 
 // ── HUD ───────────────────────────────────────────────────────
 function drawHUD() {
-  const hpBarW = mobileMode ? 280 : 200;
-  const hpBarH = mobileMode ? 28  : 18;
-  const hpFontSize = mobileMode ? 14 : 11;
+  if(mobileMode) {
+    // ── Mobile HUD: everything at the TOP so browser chrome can't hide it ──
+    const hpRatio = player.hp/player.maxHp;
 
-  // Shield bar (above HP if active)
-  if(player.maxShield>0) {
-    const shH = mobileMode ? 18 : 12;
-    const shY = H - hpBarH - shH - 24;
-    ctx.fillStyle='#111'; ctx.fillRect(10, shY, hpBarW, shH);
-    ctx.fillStyle='#44AAFF';
-    ctx.fillRect(10, shY, hpBarW*(player.shield/player.maxShield), shH);
-    ctx.strokeStyle='#88CCFF'; ctx.lineWidth=1; ctx.strokeRect(10, shY, hpBarW, shH);
-    ctx.fillStyle='#88CCFF'; ctx.font=`${hpFontSize-1}px Courier New`; ctx.textAlign='left';
-    ctx.fillText(`SH  ${Math.ceil(player.shield)} / ${player.maxShield}`, 15, shY + shH - 3);
-  }
+    // Dark backing strip across full top
+    ctx.fillStyle='rgba(0,0,0,0.72)';
+    ctx.fillRect(0, 0, W, player.maxShield>0 ? 90 : 72);
 
-  // HP bar
-  const hpRatio = player.hp/player.maxHp;
-  const hpY = H - hpBarH - 24;
-  ctx.fillStyle='#111'; ctx.fillRect(10, hpY, hpBarW, hpBarH);
-  const hpColor = player.overdrive&&hpRatio<0.25?'#FF00FF':hpRatio>0.5?'#00FF44':hpRatio>0.25?'#FFAA00':'#FF3333';
-  ctx.fillStyle=hpColor; ctx.fillRect(10, hpY, hpBarW*hpRatio, hpBarH);
-  ctx.strokeStyle='#FFF'; ctx.lineWidth=mobileMode?2:1; ctx.strokeRect(10, hpY, hpBarW, hpBarH);
-  ctx.fillStyle='#FFF'; ctx.font=`bold ${hpFontSize}px Courier New`; ctx.textAlign='left';
-  ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`, 15, hpY + hpBarH - 5);
+    // Level (top center)
+    ctx.fillStyle='#FFF'; ctx.font='bold 18px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`LEVEL ${level}`, W/2, 20);
 
-  // Mobile: low HP warning flash
-  if(mobileMode && hpRatio < 0.25) {
-    ctx.fillStyle=`rgba(255,0,0,${0.12+Math.sin(frameCount*0.2)*0.08})`;
-    ctx.fillRect(0,0,W,H);
-  }
+    // Wave / boss (top center)
+    if(!bossPhase) {
+      ctx.fillStyle='#AAA'; ctx.font='13px Courier New';
+      ctx.fillText(`Wave ${currentWaveIdx+1} / ${waveData.length}`, W/2, 38);
+    } else {
+      ctx.fillStyle='#FF4444'; ctx.font='bold 14px Courier New';
+      ctx.fillText('⚠ BOSS BATTLE ⚠', W/2, 38);
+    }
 
-  // Money
-  ctx.fillStyle='#FFD700'; ctx.font=`bold ${mobileMode?18:16}px Courier New`; ctx.textAlign='right';
-  ctx.fillText(`$${money.toLocaleString()}`,W-10,24);
+    // Money (top right)
+    ctx.fillStyle='#FFD700'; ctx.font='bold 16px Courier New'; ctx.textAlign='right';
+    ctx.fillText(`$${money.toLocaleString()}`, W-10, 20);
 
-  // Level
-  ctx.fillStyle='#FFF'; ctx.font=`bold ${mobileMode?20:18}px Courier New`; ctx.textAlign='center';
-  ctx.fillText(`LEVEL ${level}`,W/2,24);
+    // HP bar — full width, prominent, just below top info
+    const hpBarY = 46;
+    const hpBarH = 20;
+    const hpColor = player.overdrive&&hpRatio<0.25?'#FF00FF':hpRatio>0.5?'#00FF44':hpRatio>0.25?'#FFAA00':'#FF3333';
+    ctx.fillStyle='#111'; ctx.fillRect(10, hpBarY, W-20, hpBarH);
+    ctx.fillStyle=hpColor; ctx.fillRect(10, hpBarY, (W-20)*hpRatio, hpBarH);
+    ctx.strokeStyle='#FFF'; ctx.lineWidth=2; ctx.strokeRect(10, hpBarY, W-20, hpBarH);
+    ctx.fillStyle='#FFF'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`, W/2, hpBarY+14);
 
-  // Wave / boss
-  if(!bossPhase) {
-    ctx.fillStyle='#AAA'; ctx.font=`${mobileMode?15:13}px Courier New`;
-    ctx.fillText(`Wave ${currentWaveIdx+1} / ${waveData.length}`,W/2,44);
+    // Shield bar below HP bar
+    if(player.maxShield>0) {
+      const shBarY = hpBarY + hpBarH + 4;
+      ctx.fillStyle='#111'; ctx.fillRect(10, shBarY, W-20, 14);
+      ctx.fillStyle='#44AAFF'; ctx.fillRect(10, shBarY, (W-20)*(player.shield/player.maxShield), 14);
+      ctx.strokeStyle='#88CCFF'; ctx.lineWidth=1; ctx.strokeRect(10, shBarY, W-20, 14);
+      ctx.fillStyle='#88CCFF'; ctx.font='10px Courier New'; ctx.textAlign='center';
+      ctx.fillText(`SH  ${Math.ceil(player.shield)} / ${player.maxShield}`, W/2, shBarY+11);
+    }
+
+    // Low HP screen flash
+    if(hpRatio < 0.25) {
+      ctx.fillStyle=`rgba(255,0,0,${0.12+Math.sin(frameCount*0.2)*0.08})`;
+      ctx.fillRect(0,0,W,H);
+    }
+
   } else {
-    ctx.fillStyle='#FF4444'; ctx.font=`bold ${mobileMode?16:14}px Courier New`;
-    ctx.fillText('⚠ BOSS BATTLE ⚠',W/2,44);
-  }
+    // ── Desktop HUD: bars at the bottom ──
+    const hpBarW = 200, hpBarH = 18;
 
-  // Plane name
-  ctx.fillStyle='#888'; ctx.font='12px Courier New'; ctx.textAlign='left';
-  ctx.fillText(PLANES[selectedPlane].name,10,20);
+    // Shield bar
+    if(player.maxShield>0) {
+      ctx.fillStyle='#111'; ctx.fillRect(10,H-52,hpBarW,12);
+      ctx.fillStyle='#44AAFF';
+      ctx.fillRect(10,H-52,hpBarW*(player.shield/player.maxShield),12);
+      ctx.strokeStyle='#88CCFF'; ctx.lineWidth=1; ctx.strokeRect(10,H-52,hpBarW,12);
+      ctx.fillStyle='#88CCFF'; ctx.font='10px Courier New'; ctx.textAlign='left';
+      ctx.fillText(`SH  ${Math.ceil(player.shield)} / ${player.maxShield}`,15,H-42);
+    }
+
+    // HP bar
+    const hpRatio = player.hp/player.maxHp;
+    ctx.fillStyle='#111'; ctx.fillRect(10,H-32,hpBarW,hpBarH);
+    const hpColor = player.overdrive&&hpRatio<0.25?'#FF00FF':hpRatio>0.5?'#00FF44':hpRatio>0.25?'#FFAA00':'#FF3333';
+    ctx.fillStyle=hpColor; ctx.fillRect(10,H-32,hpBarW*hpRatio,hpBarH);
+    ctx.strokeStyle='#FFF'; ctx.lineWidth=1; ctx.strokeRect(10,H-32,hpBarW,hpBarH);
+    ctx.fillStyle='#FFF'; ctx.font='11px Courier New'; ctx.textAlign='left';
+    ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`,15,H-18);
+
+    // Money
+    ctx.fillStyle='#FFD700'; ctx.font='bold 16px Courier New'; ctx.textAlign='right';
+    ctx.fillText(`$${money.toLocaleString()}`,W-10,24);
+
+    // Level
+    ctx.fillStyle='#FFF'; ctx.font='bold 18px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`LEVEL ${level}`,W/2,24);
+
+    // Wave / boss
+    if(!bossPhase) {
+      ctx.fillStyle='#AAA'; ctx.font='13px Courier New';
+      ctx.fillText(`Wave ${currentWaveIdx+1} / ${waveData.length}`,W/2,44);
+    } else {
+      ctx.fillStyle='#FF4444'; ctx.font='bold 14px Courier New';
+      ctx.fillText('⚠ BOSS BATTLE ⚠',W/2,44);
+    }
+
+    // Plane name
+    ctx.fillStyle='#888'; ctx.font='12px Courier New'; ctx.textAlign='left';
+    ctx.fillText(PLANES[selectedPlane].name,10,20);
+  }
 }
 
 // ── SCREENS ───────────────────────────────────────────────────
