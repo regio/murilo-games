@@ -52,27 +52,31 @@ function persist() {
 }
 
 // ── 20 Plane Definitions ──────────────────────────────────────
+// special: { laser:N } = laser beam every N shots  (pierces, high dmg)
+//          { homing:N } = twin homing bolts every N shots
+//          { side:N }   = side lightning arcs every N shots
+//          { pierce:true } = all normal bullets pierce through enemies
 const PLANES = [
-  { name:'Rusty Biplane',   price:0,      spd:3.0, hp:100, fr:0.80, dmg:8,   color:'#C8A020', w:28, h:34 },
-  { name:'Training Jet',    price:500,    spd:3.3, hp:115, fr:1.00, dmg:10,  color:'#4169E1', w:26, h:36 },
-  { name:'Scout Plane',     price:1200,   spd:3.6, hp:130, fr:1.10, dmg:12,  color:'#20B2AA', w:26, h:36 },
-  { name:'Falcon',          price:2200,   spd:3.9, hp:150, fr:1.20, dmg:15,  color:'#DC143C', w:28, h:38 },
-  { name:'Hornet',          price:3500,   spd:4.2, hp:170, fr:1.40, dmg:17,  color:'#FF8C00', w:28, h:38 },
-  { name:'Viper',           price:5000,   spd:4.5, hp:200, fr:1.50, dmg:20,  color:'#9400D3', w:30, h:40 },
-  { name:'Thunderbolt',     price:7000,   spd:4.7, hp:230, fr:1.70, dmg:23,  color:'#FFD700', w:30, h:40 },
-  { name:'Tornado',         price:9500,   spd:5.0, hp:260, fr:1.80, dmg:26,  color:'#00CED1', w:30, h:42 },
-  { name:'Raptor',          price:12500,  spd:5.2, hp:300, fr:2.00, dmg:30,  color:'#FF4500', w:32, h:42 },
-  { name:'Phantom',         price:16000,  spd:5.4, hp:340, fr:2.20, dmg:34,  color:'#7B68EE', w:32, h:44 },
-  { name:'Nighthawk',       price:20000,  spd:5.6, hp:380, fr:2.30, dmg:38,  color:'#2F8F8F', w:32, h:44 },
-  { name:'Tempest',         price:25000,  spd:5.8, hp:420, fr:2.50, dmg:42,  color:'#00BFFF', w:34, h:46 },
-  { name:'Eagle',           price:31000,  spd:6.0, hp:460, fr:2.70, dmg:47,  color:'#EEEEEE', w:34, h:46 },
-  { name:'Stormhawk',       price:38000,  spd:6.2, hp:500, fr:2.80, dmg:52,  color:'#FF69B4', w:34, h:48 },
-  { name:'Wyvern',          price:46000,  spd:6.4, hp:550, fr:3.00, dmg:57,  color:'#ADFF2F', w:36, h:48 },
-  { name:'Thunderstrike',   price:55000,  spd:6.6, hp:600, fr:3.20, dmg:63,  color:'#FF6347', w:36, h:50 },
-  { name:'Nova',            price:65000,  spd:6.8, hp:660, fr:3.40, dmg:70,  color:'#DA70D6', w:36, h:50 },
-  { name:'Quasar',          price:77000,  spd:7.0, hp:730, fr:3.60, dmg:78,  color:'#00FF7F', w:38, h:52 },
-  { name:'Nebula',          price:90000,  spd:7.3, hp:810, fr:3.80, dmg:87,  color:'#FFA020', w:38, h:52 },
-  { name:'Apex Titan',      price:110000, spd:7.6, hp:900, fr:4.00, dmg:100, color:'#FFD700', w:40, h:56 },
+  { name:'Rusty Biplane',   price:0,      spd:3.0, hp:100, fr:0.80, dmg:8,   color:'#C8A020', w:28, h:34, special:null },
+  { name:'Training Jet',    price:500,    spd:3.3, hp:115, fr:1.00, dmg:10,  color:'#4169E1', w:26, h:36, special:null },
+  { name:'Scout Plane',     price:1200,   spd:3.6, hp:130, fr:1.10, dmg:12,  color:'#20B2AA', w:26, h:36, special:null },
+  { name:'Falcon',          price:2200,   spd:3.9, hp:150, fr:1.20, dmg:15,  color:'#DC143C', w:28, h:38, special:null },
+  { name:'Hornet',          price:3500,   spd:4.2, hp:170, fr:1.40, dmg:17,  color:'#FF8C00', w:28, h:38, special:null },
+  { name:'Viper',           price:5000,   spd:4.5, hp:200, fr:1.50, dmg:20,  color:'#9400D3', w:30, h:40, special:null },
+  { name:'Thunderbolt',     price:7000,   spd:4.7, hp:230, fr:1.70, dmg:23,  color:'#FFD700', w:30, h:40, special:{laser:5} },
+  { name:'Tornado',         price:9500,   spd:5.0, hp:260, fr:1.80, dmg:26,  color:'#00CED1', w:30, h:42, special:{homing:8} },
+  { name:'Raptor',          price:12500,  spd:5.2, hp:300, fr:2.00, dmg:30,  color:'#FF4500', w:32, h:42, special:{side:6} },
+  { name:'Phantom',         price:16000,  spd:5.4, hp:340, fr:2.20, dmg:34,  color:'#7B68EE', w:32, h:44, special:{pierce:true} },
+  { name:'Nighthawk',       price:20000,  spd:5.6, hp:380, fr:2.30, dmg:38,  color:'#2F8F8F', w:32, h:44, special:{laser:5} },
+  { name:'Tempest',         price:25000,  spd:5.8, hp:420, fr:2.50, dmg:42,  color:'#00BFFF', w:34, h:46, special:{homing:6} },
+  { name:'Eagle',           price:31000,  spd:6.0, hp:460, fr:2.70, dmg:47,  color:'#EEEEEE', w:34, h:46, special:{side:5} },
+  { name:'Stormhawk',       price:38000,  spd:6.2, hp:500, fr:2.80, dmg:52,  color:'#FF69B4', w:34, h:48, special:{laser:4} },
+  { name:'Wyvern',          price:46000,  spd:6.4, hp:550, fr:3.00, dmg:57,  color:'#ADFF2F', w:36, h:48, special:{homing:5} },
+  { name:'Thunderstrike',   price:55000,  spd:6.6, hp:600, fr:3.20, dmg:63,  color:'#FF6347', w:36, h:50, special:{laser:5,side:8} },
+  { name:'Nova',            price:65000,  spd:6.8, hp:660, fr:3.40, dmg:70,  color:'#DA70D6', w:36, h:50, special:{laser:4} },
+  { name:'Quasar',          price:77000,  spd:7.0, hp:730, fr:3.60, dmg:78,  color:'#00FF7F', w:38, h:52, special:{homing:4} },
+  { name:'Nebula',          price:90000,  spd:7.3, hp:810, fr:3.80, dmg:87,  color:'#FFA020', w:38, h:52, special:{laser:4,homing:6} },
+  { name:'Apex Titan',      price:110000, spd:7.6, hp:900, fr:4.00, dmg:100, color:'#FFD700', w:40, h:56, special:{laser:3,homing:5} },
 ];
 
 // ── 10 Power-up Definitions ───────────────────────────────────
@@ -278,23 +282,76 @@ function explode(x, y, colors, count, size) {
 
 // ── Bullet ───────────────────────────────────────────────────
 class Bullet {
-  constructor(x, y, vx, vy, dmg, isPlayer, color) {
+  constructor(x, y, vx, vy, dmg, isPlayer, color, opts={}) {
     this.x=x; this.y=y; this.vx=vx; this.vy=vy;
     this.dmg=dmg; this.isPlayer=isPlayer; this.color=color;
     this.alive=true;
-    this.w = isPlayer ? 4 : 6;
-    this.h = isPlayer ? 14 : 10;
+    this.pierce = opts.pierce || false;
+    this.homing  = opts.homing || false;
+    this.laser   = opts.laser  || false;
+    this.pierceHits = 0;
+    if(this.laser)  { this.w=18; this.h=55; }
+    else if(this.homing) { this.w=7; this.h=20; }
+    else { this.w = isPlayer ? 4 : 6; this.h = isPlayer ? 14 : 10; }
   }
   update() {
+    // Homing: steer toward nearest enemy / boss
+    if(this.homing && this.isPlayer) {
+      let nearest=null, nearDist=Infinity;
+      enemies.forEach(e => {
+        if(!e.alive) return;
+        const d=Math.hypot(e.x-this.x, e.y-this.y);
+        if(d<nearDist && d<380) { nearDist=d; nearest=e; }
+      });
+      if(!nearest && bossObj && bossObj.alive) nearest=bossObj;
+      if(nearest) {
+        const dx=nearest.x-this.x, dy=nearest.y-this.y, d=Math.sqrt(dx*dx+dy*dy)||1;
+        const spd=Math.sqrt(this.vx*this.vx+this.vy*this.vy)||1;
+        this.vx+=dx/d*0.9; this.vy+=dy/d*0.9;
+        const ns=Math.sqrt(this.vx*this.vx+this.vy*this.vy)||1;
+        this.vx=this.vx/ns*spd; this.vy=this.vy/ns*spd;
+      }
+    }
     this.x+=this.vx; this.y+=this.vy;
-    if(this.y<-30||this.y>H+30||this.x<-30||this.x>W+30) this.alive=false;
+    if(this.y<-60||this.y>H+60||this.x<-60||this.x>W+60) this.alive=false;
   }
   draw() {
-    ctx.shadowColor = this.color;
-    ctx.shadowBlur  = 8;
-    ctx.fillStyle   = this.color;
-    ctx.fillRect(this.x-this.w/2, this.y-this.h/2, this.w, this.h);
-    ctx.shadowBlur  = 0;
+    if(this.laser) {
+      ctx.save();
+      ctx.shadowColor='#FF44FF'; ctx.shadowBlur=28;
+      // Outer glow
+      ctx.fillStyle='rgba(255,80,255,0.3)';
+      ctx.fillRect(this.x-this.w/2-5, this.y-this.h/2, this.w+10, this.h);
+      // Main beam
+      ctx.fillStyle='#FF44FF';
+      ctx.fillRect(this.x-this.w/2, this.y-this.h/2, this.w, this.h);
+      // Bright core
+      ctx.fillStyle='#FFFFFF';
+      ctx.fillRect(this.x-4, this.y-this.h/2, 8, this.h);
+      ctx.shadowBlur=0; ctx.restore();
+    } else if(this.homing) {
+      ctx.save();
+      ctx.shadowColor='#00FFFF'; ctx.shadowBlur=18;
+      ctx.strokeStyle='#00FFFF'; ctx.lineWidth=3;
+      // Zigzag lightning bolt shape
+      ctx.beginPath();
+      const sh=this.h*1.2;
+      ctx.moveTo(this.x-4, this.y-sh/2);
+      ctx.lineTo(this.x+5, this.y-sh/6);
+      ctx.lineTo(this.x-4, this.y+sh/6);
+      ctx.lineTo(this.x+5, this.y+sh/2);
+      ctx.stroke();
+      // Glowing tip
+      ctx.fillStyle='#AAFFFF';
+      ctx.beginPath(); ctx.arc(this.x-4, this.y-sh/2, 4, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0; ctx.restore();
+    } else {
+      ctx.shadowColor = this.color;
+      ctx.shadowBlur  = 8;
+      ctx.fillStyle   = this.color;
+      ctx.fillRect(this.x-this.w/2, this.y-this.h/2, this.w, this.h);
+      ctx.shadowBlur  = 0;
+    }
   }
 }
 
@@ -1118,7 +1175,7 @@ function startLevel(lvl) {
     explosive:  powerupLevels[8] > 0,
     ironWill:   powerupLevels[9] > 0,
     ironWillUsed: false,
-    fireCooldown:0, inv:0, def
+    fireCooldown:0, inv:0, shotCount:0, def
   };
   state='playing';
 }
@@ -1143,11 +1200,15 @@ function checkCollisions() {
   // Player bullets → enemies + boss
   for(const b of bullets) {
     if(!b.isPlayer||!b.alive) continue;
+    // laser uses wider hit box
+    const bsz = b.laser ? b.w*0.7 : 0;
     for(const e of enemies) {
       if(!e.alive) continue;
-      if(Math.abs(b.x-e.x)<e.sz && Math.abs(b.y-e.y)<e.sz) {
-        b.alive=false; e.hit(b.dmg);
-        // Blast Rounds: splash nearby enemies
+      const hitW = e.sz + bsz, hitH = e.sz + (b.laser ? b.h*0.3 : 0);
+      if(Math.abs(b.x-e.x)<hitW && Math.abs(b.y-e.y)<hitH) {
+        if(!b.pierce) b.alive=false;
+        else { b.pierceHits++; if(b.pierceHits>=5) b.alive=false; }
+        e.hit(b.dmg);
         if(player.explosive) {
           enemies.forEach(other=>{
             if(other!==e&&other.alive&&Math.hypot(other.x-b.x,other.y-b.y)<55)
@@ -1155,12 +1216,13 @@ function checkCollisions() {
           });
           explode(b.x,b.y,['#FF6600','#FF8800'],8,3);
         }
-        break;
+        if(!b.pierce) break;
       }
     }
     if(bossObj&&bossObj.alive&&b.alive) {
-      if(Math.abs(b.x-bossObj.x)<bossObj.sz && Math.abs(b.y-bossObj.y)<bossObj.sz*0.85) {
-        b.alive=false; bossObj.hit(b.dmg);
+      if(Math.abs(b.x-bossObj.x)<bossObj.sz+bsz && Math.abs(b.y-bossObj.y)<bossObj.sz*0.85) {
+        if(!b.pierce) b.alive=false;
+        bossObj.hit(b.dmg);
         if(player.explosive) explode(b.x,b.y,['#FF6600','#FF8800'],6,3);
       }
     }
@@ -1222,14 +1284,39 @@ function updatePlaying() {
   player.fireCooldown-=player.fr/12;
   if(player.fireCooldown<=0) {
     player.fireCooldown=1;
-    bullets.push(new Bullet(player.x,player.y-20,0,-11,player.dmg,true,'#00EEFF'));
-    if(selectedPlane>=10) {   // Dual cannon on advanced planes
-      bullets.push(new Bullet(player.x-13,player.y-14,0,-11,player.dmg*0.55,true,'#00EEFF'));
-      bullets.push(new Bullet(player.x+13,player.y-14,0,-11,player.dmg*0.55,true,'#00EEFF'));
+    player.shotCount++;
+    const sp = player.def.special || {};
+    const pierce = sp.pierce || false;
+
+    // Normal shots (pierce flag passes through if Phantom / pierce plane)
+    bullets.push(new Bullet(player.x,player.y-20,0,-11,player.dmg,true,'#00EEFF',{pierce}));
+    if(selectedPlane>=10) {
+      bullets.push(new Bullet(player.x-13,player.y-14,0,-11,player.dmg*0.55,true,'#00EEFF',{pierce}));
+      bullets.push(new Bullet(player.x+13,player.y-14,0,-11,player.dmg*0.55,true,'#00EEFF',{pierce}));
     }
-    if(selectedPlane>=16) {   // Angled shots on top planes
-      bullets.push(new Bullet(player.x,player.y-10,-2,-10,player.dmg*0.4,true,'#AAFFFF'));
-      bullets.push(new Bullet(player.x,player.y-10, 2,-10,player.dmg*0.4,true,'#AAFFFF'));
+    if(selectedPlane>=16) {
+      bullets.push(new Bullet(player.x,player.y-10,-2,-10,player.dmg*0.4,true,'#AAFFFF',{pierce}));
+      bullets.push(new Bullet(player.x,player.y-10, 2,-10,player.dmg*0.4,true,'#AAFFFF',{pierce}));
+    }
+
+    // ── Special: Laser beam (wide, piercing, high damage) ──
+    if(sp.laser && player.shotCount % sp.laser === 0) {
+      bullets.push(new Bullet(player.x, player.y-20, 0, -20, player.dmg*2.8, true, '#FF44FF', {laser:true, pierce:true}));
+      explode(player.x, player.y-30, ['#FF44FF','#FFFFFF','#FF88FF'], 6, 2);
+    }
+
+    // ── Special: Twin homing lightning bolts ──
+    if(sp.homing && player.shotCount % sp.homing === 0) {
+      bullets.push(new Bullet(player.x-18, player.y-10, -0.5, -10, player.dmg*2.2, true, '#00FFFF', {homing:true}));
+      bullets.push(new Bullet(player.x+18, player.y-10,  0.5, -10, player.dmg*2.2, true, '#00FFFF', {homing:true}));
+    }
+
+    // ── Special: Side lightning arcs ──
+    if(sp.side && player.shotCount % sp.side === 0) {
+      bullets.push(new Bullet(player.x-22, player.y-5, -4,  -9, player.dmg*1.6, true, '#FFEE00'));
+      bullets.push(new Bullet(player.x+22, player.y-5,  4,  -9, player.dmg*1.6, true, '#FFEE00'));
+      bullets.push(new Bullet(player.x-22, player.y-5, -6,  -6, player.dmg*1.2, true, '#FF8800'));
+      bullets.push(new Bullet(player.x+22, player.y-5,  6,  -6, player.dmg*1.2, true, '#FF8800'));
     }
   }
 
@@ -1472,10 +1559,23 @@ function drawShop() {
       roundRect(cx-cellW/2+5,cy-50,cellW-10,cellH-8,8); ctx.fill(); ctx.stroke();
       drawPlaneShape(cx,cy-14,def,0.78,false);
       ctx.fillStyle=owned?'#FFF':'#777'; ctx.font=`${owned?'bold ':''}11px Courier New`; ctx.textAlign='center';
-      ctx.fillText(def.name,cx,cy+26);
-      if(sel)        { ctx.fillStyle='#00FFFF'; ctx.font='bold 10px Courier New'; ctx.fillText('EQUIPPED',cx,cy+40); }
-      else if(owned) { ctx.fillStyle='#00FF88'; ctx.font='10px Courier New'; ctx.fillText('OWNED — equip',cx,cy+40); }
-      else           { ctx.fillStyle=afford?'#FFD700':'#FF4444'; ctx.font='bold 11px Courier New'; ctx.fillText('$'+def.price.toLocaleString(),cx,cy+40); }
+      ctx.fillText(def.name,cx,cy+22);
+      // Special ability tag
+      if(def.special) {
+        const sp=def.special;
+        let tag='', tagColor='#FFAA44';
+        if(sp.pierce)                          { tag='◆ PIERCE ALL';           tagColor='#BB88FF'; }
+        else if(sp.laser && sp.homing)         { tag=`⚡ LASER/${sp.laser} + HOMING/${sp.homing}`; tagColor='#FF88FF'; }
+        else if(sp.laser && sp.side)           { tag=`⚡ LASER/${sp.laser} + ARC/${sp.side}`;      tagColor='#FFAA44'; }
+        else if(sp.laser)                      { tag=`⚡ LASER every ${sp.laser} shots`;           tagColor='#FF88FF'; }
+        else if(sp.homing)                     { tag=`🔵 HOMING every ${sp.homing} shots`;        tagColor='#00FFFF'; }
+        else if(sp.side)                       { tag=`⚡ SIDE ARC every ${sp.side} shots`;        tagColor='#FFEE44'; }
+        ctx.fillStyle=tagColor; ctx.font='bold 9px Courier New';
+        ctx.fillText(tag,cx,cy+33);
+      }
+      if(sel)        { ctx.fillStyle='#00FFFF'; ctx.font='bold 10px Courier New'; ctx.fillText('EQUIPPED',cx,cy+44); }
+      else if(owned) { ctx.fillStyle='#00FF88'; ctx.font='10px Courier New'; ctx.fillText('OWNED — equip',cx,cy+44); }
+      else           { ctx.fillStyle=afford?'#FFD700':'#FF4444'; ctx.font='bold 11px Courier New'; ctx.fillText('$'+def.price.toLocaleString(),cx,cy+44); }
       const q=i/19, bw=cellW-22;
       ctx.fillStyle='#333'; ctx.fillRect(cx-bw/2,cy+50,bw,4);
       ctx.fillStyle=`hsl(${120*q},100%,50%)`; ctx.fillRect(cx-bw/2,cy+50,bw*q,4);
