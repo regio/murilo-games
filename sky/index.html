@@ -1252,7 +1252,7 @@ function drawHUD() {
   // Shield bar (above HP if active)
   if(player.maxShield>0) {
     const shH = mobileMode ? 18 : 12;
-    const shY = H - hpBarH - shH - 6;
+    const shY = H - hpBarH - shH - 24;
     ctx.fillStyle='#111'; ctx.fillRect(10, shY, hpBarW, shH);
     ctx.fillStyle='#44AAFF';
     ctx.fillRect(10, shY, hpBarW*(player.shield/player.maxShield), shH);
@@ -1263,7 +1263,7 @@ function drawHUD() {
 
   // HP bar
   const hpRatio = player.hp/player.maxHp;
-  const hpY = H - hpBarH - 6;
+  const hpY = H - hpBarH - 24;
   ctx.fillStyle='#111'; ctx.fillRect(10, hpY, hpBarW, hpBarH);
   const hpColor = player.overdrive&&hpRatio<0.25?'#FF00FF':hpRatio>0.5?'#00FF44':hpRatio>0.25?'#FFAA00':'#FF3333';
   ctx.fillStyle=hpColor; ctx.fillRect(10, hpY, hpBarW*hpRatio, hpBarH);
