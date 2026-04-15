@@ -16,6 +16,9 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<!-- Hidden input used to capture typing (including mobile keyboard) for the codes tab -->
+<input id="codeInp" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+  style="position:fixed;opacity:0;pointer-events:none;top:50%;left:50%;width:1px;height:1px;border:none;outline:none;">
 <script>
 const canvas = document.getElementById('c');
 const ctx    = canvas.getContext('2d');
@@ -92,6 +95,43 @@ const POWERUPS = [
   { name:'Blast Rounds',   desc:'Bullets explode on impact',    max:1, base:8000,  mult:1.0, color:'#FF6600' },
   { name:'Iron Will',      desc:'Survive one lethal hit/level', max:1, base:12000, mult:1.0, color:'#CCAAFF' },
 ];
+
+// ── Codes ─────────────────────────────────────────────────────
+const codeInp = document.getElementById('codeInp');
+let codeDisplay = '';   // mirrors what the user typed
+let codeMsg = { text:'', color:'#FFF', timer:0 };
+
+codeInp.addEventListener('input', () => { codeDisplay = codeInp.value.toUpperCase(); });
+codeInp.addEventListener('keydown', e => {
+  if(e.key==='Enter') { submitCode(); e.preventDefault(); }
+});
+
+function submitCode() {
+  const raw = codeInp.value.trim().toUpperCase().replace(/\s/g,'');
+  codeInp.value = ''; codeDisplay = '';
+
+  if(raw === 'GAM') {
+    money += 999999999; persist();
+    codeMsg = { text:'✓ $999,999,999 added!', color:'#00FF88', timer:220 };
+    return;
+  }
+  if(raw === 'RM') {
+    money=0; unlockedPlanes=[0]; selectedPlane=0; powerupLevels=new Array(10).fill(0); persist();
+    codeMsg = { text:'✓ Account reset.', color:'#FF4444', timer:220 };
+    return;
+  }
+  if(raw.endsWith('HI')) {
+    const key = raw.slice(0,-2);
+    const idx = PLANES.findIndex(p => p.name.toUpperCase().replace(/\s/g,'')===key);
+    if(idx>=0) {
+      if(!unlockedPlanes.includes(idx)) unlockedPlanes.push(idx);
+      persist();
+      codeMsg = { text:`✓ ${PLANES[idx].name} unlocked!`, color:'#00FFFF', timer:220 };
+      return;
+    }
+  }
+  codeMsg = { text:'✗ Invalid code', color:'#FF4444', timer:160 };
+}
 
 function pupCost(i) {
   const p=POWERUPS[i], lv=powerupLevels[i];
@@ -217,7 +257,10 @@ let spawnDelay      = 0;
 
 // ── Input ─────────────────────────────────────────────────────
 const keys = {};
-document.addEventListener('keydown', e => { keys[e.key] = true;  e.preventDefault(); }, {passive:false});
+document.addEventListener('keydown', e => {
+  if(state==='shop' && shopTab==='codes') { /* codeInp handles it */ return; }
+  keys[e.key] = true; e.preventDefault();
+}, {passive:false});
 document.addEventListener('keyup',   e => { keys[e.key] = false; });
 
 let mouseX = 0, mouseY = 0;
@@ -1515,6 +1558,7 @@ function drawShop() {
 
   const plHov=mouseX>4&&mouseX<74&&mouseY>100&&mouseY<210;
   const puHov=mouseX>4&&mouseX<74&&mouseY>220&&mouseY<330;
+  const coHov=mouseX>4&&mouseX<74&&mouseY>340&&mouseY<430;
 
   // PLANES button (tall vertical)
   ctx.fillStyle=shopTab==='planes'?'#003366':plHov?'#002244':'#111';
@@ -1540,6 +1584,19 @@ function drawShop() {
   ctx.fillText('⚡ PWR-UPS',0,0); ctx.restore();
   if(shopTab==='powerups'){
     ctx.fillStyle='#00FF88'; ctx.fillRect(72,220,4,110);
+  }
+
+  // CODES button
+  ctx.fillStyle=shopTab==='codes'?'#2a1a00':coHov?'#1a1000':'#111';
+  ctx.strokeStyle=shopTab==='codes'?'#FFD700':'#444';
+  ctx.lineWidth=shopTab==='codes'?2:1;
+  roundRect(4,340,70,90,8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=shopTab==='codes'?'#FFD700':'#888';
+  ctx.font='bold 11px Courier New';
+  ctx.save(); ctx.translate(39,385); ctx.rotate(-Math.PI/2);
+  ctx.fillText('🔑 CODES',0,0); ctx.restore();
+  if(shopTab==='codes'){
+    ctx.fillStyle='#FFD700'; ctx.fillRect(72,340,4,90);
   }
 
   if(shopTab==='planes') {
@@ -1632,6 +1689,39 @@ function drawShop() {
         ctx.fillText(`Lv ${lv}→${lv+1}`,cx+cellW/2-12,cy+26);
       }
     }
+  }
+
+  if(shopTab==='codes') {
+    const cx2=(W+78)/2, cy2=H/2+10;
+    ctx.fillStyle='#FFD700'; ctx.font='bold 24px Courier New'; ctx.textAlign='center';
+    ctx.fillText('REDEEM CODE',cx2,cy2-110);
+    ctx.fillStyle='#888'; ctx.font='13px Courier New';
+    ctx.fillText('Type your code below and press ENTER (or tap Submit)',cx2,cy2-82);
+
+    // Input box
+    const bx=cx2-220, bw=440, bh=46;
+    ctx.fillStyle='#0d0d22';
+    ctx.strokeStyle=shopTab==='codes'?'#FFD700':'#333'; ctx.lineWidth=2;
+    roundRect(bx, cy2-68, bw, bh, 10); ctx.fill(); ctx.stroke();
+    // typed text + blinking cursor
+    ctx.fillStyle='#FFF'; ctx.font='bold 22px Courier New'; ctx.textAlign='center';
+    const cursor = Math.floor(frameCount/28)%2===0 ? '|' : '';
+    ctx.fillText((codeDisplay||'') + cursor, cx2, cy2-38);
+
+    // Submit button
+    const sbHov=mouseX>cx2-80&&mouseX<cx2+80&&mouseY>cy2+2&&mouseY<cy2+50;
+    drawBtn(cx2, cy2+26, 160, 44, '▶  SUBMIT', sbHov, '#332200','#FFD700');
+
+    // Result message
+    if(codeMsg.timer>0) {
+      codeMsg.timer--;
+      ctx.fillStyle=codeMsg.color; ctx.font='bold 18px Courier New'; ctx.textAlign='center';
+      ctx.fillText(codeMsg.text, cx2, cy2+82);
+    }
+
+    // Hint codes
+    ctx.fillStyle='#333'; ctx.font='12px Courier New';
+    ctx.fillText('Tap the box area or just start typing to enter a code',cx2,cy2+115);
   }
 
   // Header drawn last so it always sits on top of the content grid
@@ -1820,10 +1910,20 @@ function handleClick(e) {
     }
   }
   if(state==='shop') {
-    if(mx>4&&mx<74&&my>8&&my<40)   { state='menu'; return; }
+    if(mx>4&&mx<74&&my>8&&my<40)   { state='menu'; codeInp.style.pointerEvents='none'; codeInp.blur(); return; }
     // Sidebar tab switching
-    if(mx>4&&mx<74&&my>100&&my<210) { shopTab='planes'; shopScroll=0; return; }
-    if(mx>4&&mx<74&&my>220&&my<330) { shopTab='powerups'; return; }
+    if(mx>4&&mx<74&&my>100&&my<210) { shopTab='planes'; shopScroll=0; codeInp.style.pointerEvents='none'; codeInp.blur(); return; }
+    if(mx>4&&mx<74&&my>220&&my<330) { shopTab='powerups'; codeInp.style.pointerEvents='none'; codeInp.blur(); return; }
+    if(mx>4&&mx<74&&my>340&&my<430) {
+      shopTab='codes'; codeInp.value=''; codeDisplay='';
+      codeInp.style.pointerEvents='auto'; codeInp.focus(); return;
+    }
+    // Codes tab: Submit button and tapping input box focuses keyboard
+    if(shopTab==='codes') {
+      const cx2=(W+78)/2, cy2=H/2+10;
+      if(mx>cx2-80&&mx<cx2+80&&my>cy2+2&&my<cy2+50) { submitCode(); return; }
+      if(mx>cx2-220&&mx<cx2+220&&my>cy2-68&&my<cy2-22) { codeInp.focus(); return; }
+    }
 
     if(shopTab==='planes') {
       const cols=4,cellW=174,cellH=124;
