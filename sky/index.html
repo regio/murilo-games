@@ -25,10 +25,13 @@ let unlockedPlanes = save.unlocked || [0];
 let selectedPlane  = save.selected || 0;
 let highestLevel   = save.highest  || 0;
 let powerupLevels  = save.pups    || new Array(10).fill(0);
+let mobileMode     = save.mobile  || false;
+let mobileAsked    = save.mobileAsked || false;
 
 function persist() {
   localStorage.setItem('skysq', JSON.stringify({
-    money, unlocked: unlockedPlanes, selected: selectedPlane, highest: highestLevel, pups: powerupLevels
+    money, unlocked: unlockedPlanes, selected: selectedPlane, highest: highestLevel, pups: powerupLevels,
+    mobile: mobileMode, mobileAsked: true
   }));
 }
 
@@ -171,7 +174,7 @@ function drawBtn(cx, cy, bw, bh, label, hovered, bg, border) {
 }
 
 // ── Game globals ──────────────────────────────────────────────
-let state = 'menu';   // menu | shop | levelselect | playing | level_complete | game_over | win
+let state = mobileAsked ? 'menu' : 'mobile_prompt';  // mobile_prompt | menu | shop | levelselect | playing | level_complete | game_over | win
 let frameCount = 0;
 let level = 1;
 let shopScroll = 0;
@@ -208,6 +211,21 @@ canvas.addEventListener('wheel', e => {
   if (state === 'shop')        shopScroll        = Math.max(0, Math.min(shopScroll        + e.deltaY * 0.6, 500));
   if (state === 'levelselect') levelSelectScroll = Math.max(0, Math.min(levelSelectScroll + e.deltaY * 0.6, 1600));
 }, {passive: true});
+
+// Touch support — maps finger position to mouseX/mouseY so existing mouse-follow logic handles movement
+function updateTouchPos(e) {
+  const r = canvas.getBoundingClientRect();
+  const t = e.touches[0];
+  mouseX = (t.clientX - r.left) * (W / r.width);
+  mouseY = (t.clientY - r.top)  * (H / r.height);
+}
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  updateTouchPos(e);
+  // Only trigger button clicks on non-playing states; during play, touch just moves the ship
+  if(state !== 'playing') handleClick({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY});
+}, {passive: false});
+canvas.addEventListener('touchmove', e => { e.preventDefault(); updateTouchPos(e); }, {passive: false});
 
 // ── Particle ──────────────────────────────────────────────────
 class Particle {
@@ -1227,38 +1245,52 @@ function updatePlaying() {
 
 // ── HUD ───────────────────────────────────────────────────────
 function drawHUD() {
+  const hpBarW = mobileMode ? 280 : 200;
+  const hpBarH = mobileMode ? 28  : 18;
+  const hpFontSize = mobileMode ? 14 : 11;
+
   // Shield bar (above HP if active)
   if(player.maxShield>0) {
-    ctx.fillStyle='#111'; ctx.fillRect(10,H-52,200,12);
+    const shH = mobileMode ? 18 : 12;
+    const shY = H - hpBarH - shH - 6;
+    ctx.fillStyle='#111'; ctx.fillRect(10, shY, hpBarW, shH);
     ctx.fillStyle='#44AAFF';
-    ctx.fillRect(10,H-52,200*(player.shield/player.maxShield),12);
-    ctx.strokeStyle='#88CCFF'; ctx.lineWidth=1; ctx.strokeRect(10,H-52,200,12);
-    ctx.fillStyle='#88CCFF'; ctx.font='10px Courier New'; ctx.textAlign='left';
-    ctx.fillText(`SH  ${Math.ceil(player.shield)} / ${player.maxShield}`,15,H-42);
+    ctx.fillRect(10, shY, hpBarW*(player.shield/player.maxShield), shH);
+    ctx.strokeStyle='#88CCFF'; ctx.lineWidth=1; ctx.strokeRect(10, shY, hpBarW, shH);
+    ctx.fillStyle='#88CCFF'; ctx.font=`${hpFontSize-1}px Courier New`; ctx.textAlign='left';
+    ctx.fillText(`SH  ${Math.ceil(player.shield)} / ${player.maxShield}`, 15, shY + shH - 3);
   }
+
   // HP bar
   const hpRatio = player.hp/player.maxHp;
-  ctx.fillStyle='#111'; ctx.fillRect(10,H-32,200,18);
+  const hpY = H - hpBarH - 6;
+  ctx.fillStyle='#111'; ctx.fillRect(10, hpY, hpBarW, hpBarH);
   const hpColor = player.overdrive&&hpRatio<0.25?'#FF00FF':hpRatio>0.5?'#00FF44':hpRatio>0.25?'#FFAA00':'#FF3333';
-  ctx.fillStyle=hpColor; ctx.fillRect(10,H-32,200*hpRatio,18);
-  ctx.strokeStyle='#FFF'; ctx.lineWidth=1; ctx.strokeRect(10,H-32,200,18);
-  ctx.fillStyle='#FFF'; ctx.font='11px Courier New'; ctx.textAlign='left';
-  ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`,15,H-18);
+  ctx.fillStyle=hpColor; ctx.fillRect(10, hpY, hpBarW*hpRatio, hpBarH);
+  ctx.strokeStyle='#FFF'; ctx.lineWidth=mobileMode?2:1; ctx.strokeRect(10, hpY, hpBarW, hpBarH);
+  ctx.fillStyle='#FFF'; ctx.font=`bold ${hpFontSize}px Courier New`; ctx.textAlign='left';
+  ctx.fillText(`HP  ${Math.ceil(player.hp)} / ${player.maxHp}`, 15, hpY + hpBarH - 5);
+
+  // Mobile: low HP warning flash
+  if(mobileMode && hpRatio < 0.25) {
+    ctx.fillStyle=`rgba(255,0,0,${0.12+Math.sin(frameCount*0.2)*0.08})`;
+    ctx.fillRect(0,0,W,H);
+  }
 
   // Money
-  ctx.fillStyle='#FFD700'; ctx.font='bold 16px Courier New'; ctx.textAlign='right';
+  ctx.fillStyle='#FFD700'; ctx.font=`bold ${mobileMode?18:16}px Courier New`; ctx.textAlign='right';
   ctx.fillText(`$${money.toLocaleString()}`,W-10,24);
 
   // Level
-  ctx.fillStyle='#FFF'; ctx.font='bold 18px Courier New'; ctx.textAlign='center';
+  ctx.fillStyle='#FFF'; ctx.font=`bold ${mobileMode?20:18}px Courier New`; ctx.textAlign='center';
   ctx.fillText(`LEVEL ${level}`,W/2,24);
 
   // Wave / boss
   if(!bossPhase) {
-    ctx.fillStyle='#AAA'; ctx.font='13px Courier New';
+    ctx.fillStyle='#AAA'; ctx.font=`${mobileMode?15:13}px Courier New`;
     ctx.fillText(`Wave ${currentWaveIdx+1} / ${waveData.length}`,W/2,44);
   } else {
-    ctx.fillStyle='#FF4444'; ctx.font='bold 14px Courier New';
+    ctx.fillStyle='#FF4444'; ctx.font=`bold ${mobileMode?16:14}px Courier New`;
     ctx.fillText('⚠ BOSS BATTLE ⚠',W/2,44);
   }
 
@@ -1268,6 +1300,27 @@ function drawHUD() {
 }
 
 // ── SCREENS ───────────────────────────────────────────────────
+
+/* ---- MOBILE PROMPT ---- */
+function drawMobilePrompt() {
+  drawStars();
+
+  ctx.shadowColor='#00CCFF'; ctx.shadowBlur=14;
+  ctx.fillStyle='#FFFFFF'; ctx.font='bold 30px Courier New'; ctx.textAlign='center';
+  ctx.fillText('SKY SQUADRON', W/2, H/2 - 130);
+  ctx.shadowBlur=0;
+
+  ctx.fillStyle='#AADDFF'; ctx.font='20px Courier New';
+  ctx.fillText('Are you playing on mobile?', W/2, H/2 - 68);
+
+  ctx.fillStyle='#666'; ctx.font='13px Courier New';
+  ctx.fillText('Touch controls & bigger health bar', W/2, H/2 - 38);
+
+  const yh = mouseX>W/2-170&&mouseX<W/2-10&&mouseY>H/2&&mouseY<H/2+64;
+  const nh = mouseX>W/2+10 &&mouseX<W/2+170&&mouseY>H/2&&mouseY<H/2+64;
+  drawBtn(W/2-90, H/2+32, 160, 58, '✓  YES', yh, '#003a00','#00FF88');
+  drawBtn(W/2+90, H/2+32, 160, 58, '✗  NO',  nh, '#3a0000','#FF4444');
+}
 
 /* ---- MENU ---- */
 function drawMenu() {
@@ -1584,6 +1637,10 @@ function handleClick(e) {
   const mx=(e.clientX-r.left)*(W/r.width);
   const my=(e.clientY-r.top)*(H/r.height);
 
+  if(state==='mobile_prompt') {
+    if(mx>W/2-170&&mx<W/2-10&&my>H/2&&my<H/2+64) { mobileMode=true;  persist(); state='menu'; return; }
+    if(mx>W/2+10 &&mx<W/2+170&&my>H/2&&my<H/2+64) { mobileMode=false; persist(); state='menu'; return; }
+  }
   if(state==='menu') {
     if(mx>W/2-110&&mx<W/2+110&&my>370&&my<420) { startLevel(1); return; }
     if(mx>W/2-110&&mx<W/2+110&&my>435&&my<485&&highestLevel>0) { state='levelselect'; levelSelectScroll=0; return; }
@@ -1652,6 +1709,7 @@ function handleClick(e) {
 function gameLoop() {
   frameCount++;
   switch(state) {
+    case 'mobile_prompt':  drawMobilePrompt();   break;
     case 'menu':           drawMenu();           break;
     case 'shop':           drawShop();           break;
     case 'levelselect':    drawLevelSelect();    break;
