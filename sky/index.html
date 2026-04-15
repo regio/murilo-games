@@ -130,6 +130,26 @@ function submitCode() {
       return;
     }
   }
+  if(raw.endsWith('BYE')) {
+    const key = raw.slice(0,-3);
+    const idx = PLANES.findIndex(p => p.name.toUpperCase().replace(/\s/g,'')===key);
+    if(idx<=0) {
+      codeMsg = { text:'✗ Cannot sell starter ship', color:'#FF4444', timer:160 };
+      return;
+    }
+    if(idx>=0) {
+      if(!unlockedPlanes.includes(idx)) {
+        codeMsg = { text:`✗ You don't own ${PLANES[idx].name}`, color:'#FF4444', timer:160 };
+        return;
+      }
+      unlockedPlanes = unlockedPlanes.filter(i => i!==idx);
+      money += PLANES[idx].price;
+      if(selectedPlane===idx) selectedPlane=0;
+      persist();
+      codeMsg = { text:`✓ ${PLANES[idx].name} sold for $${PLANES[idx].price.toLocaleString()}!`, color:'#FFD700', timer:220 };
+      return;
+    }
+  }
   codeMsg = { text:'✗ Invalid code', color:'#FF4444', timer:160 };
 }
 
