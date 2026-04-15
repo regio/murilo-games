@@ -282,13 +282,42 @@ function updateTouchPos(e) {
   mouseX = (t.clientX - r.left) * (W / r.width);
   mouseY = (t.clientY - r.top)  * (H / r.height);
 }
+let _touchStartX=0, _touchStartY=0, _touchLastY=0, _touchDrag=false;
+
 canvas.addEventListener('touchstart', e => {
   e.preventDefault();
   updateTouchPos(e);
-  // Only trigger button clicks on non-playing states; during play, touch just moves the ship
-  if(state !== 'playing') handleClick({clientX: e.touches[0].clientX, clientY: e.touches[0].clientY});
+  _touchStartX = e.touches[0].clientX;
+  _touchStartY = e.touches[0].clientY;
+  _touchLastY  = e.touches[0].clientY;
+  _touchDrag   = false;
 }, {passive: false});
-canvas.addEventListener('touchmove', e => { e.preventDefault(); updateTouchPos(e); }, {passive: false});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const r = canvas.getBoundingClientRect();
+  const scale = H / r.height;           // screen px → canvas units
+  const deltaY = (t.clientY - _touchLastY) * scale;
+  _touchLastY = t.clientY;
+
+  if(Math.abs(t.clientY - _touchStartY) > 10) _touchDrag = true;
+
+  if(_touchDrag) {
+    if(state==='shop')
+      shopScroll = Math.max(0, Math.min(shopScroll - deltaY, 500));
+    if(state==='levelselect')
+      levelSelectScroll = Math.max(0, Math.min(levelSelectScroll - deltaY, 1600));
+  }
+
+  updateTouchPos(e);
+}, {passive: false});
+
+canvas.addEventListener('touchend', e => {
+  // Only fire a click if the finger didn't scroll
+  if(!_touchDrag && state !== 'playing')
+    handleClick({clientX: _touchStartX, clientY: _touchStartY});
+}, {passive: false});
 
 // ── Particle ──────────────────────────────────────────────────
 class Particle {
