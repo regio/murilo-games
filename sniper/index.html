@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Sniper's Eye</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: crosshair; touch-action: none; image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width = 800;
+const H = canvas.height = 600;
+
+function fitCanvas() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width  = (W * s) + 'px';
+  canvas.style.height = (H * s) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 120));
+fitCanvas();
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+let save = JSON.parse(localStorage.getItem('sniperseye') || '{}');
+function persist() {
+  localStorage.setItem('sniperseye', JSON.stringify(save));
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let state = 'menu'; // menu | missionselect | briefing | playing | exfil | game_over | win
+let mission = 0;    // 0-indexed
+let briefTimer = 0;
+let exfilReady = false;
+let exfilDone = false;
+let transTimer = 0;
+let transitioning = false;
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+let mouseX = W / 2, mouseY = H / 2;
+let clicked = false;
+let clickX = 0, clickY = 0;
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - r.left) * (W / r.width);
+  mouseY = (e.clientY - r.top)  * (H / r.height);
+});
+canvas.addEventListener('click', e => {
+  const r = canvas.getBoundingClientRect();
+  clicked = true;
+  clickX = (e.clientX - r.left) * (W / r.width);
+  clickY = (e.clientY - r.top)  * (H / r.height);
+});
+
+let touchStartX = 0, touchStartY = 0, touchMoved = false;
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0], r = canvas.getBoundingClientRect();
+  mouseX = touchStartX = (t.clientX - r.left) * (W / r.width);
+  mouseY = touchStartY = (t.clientY - r.top)  * (H / r.height);
+  touchMoved = false;
+}, { passive: false });
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const t = e.touches[0], r = canvas.getBoundingClientRect();
+  mouseX = (t.clientX - r.left) * (W / r.width);
+  mouseY = (t.clientY - r.top)  * (H / r.height);
+  if (Math.abs(mouseX - touchStartX) > 8 || Math.abs(mouseY - touchStartY) > 8) touchMoved = true;
+}, { passive: false });
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (!touchMoved) { clicked = true; clickX = mouseX; clickY = mouseY; }
+}, { passive: false });
+
+document.addEventListener('keydown', e => {
+  if ((e.code === 'Space' || e.key === ' ') && state === 'playing') {
+    e.preventDefault();
+    activateHoldBreath();
+  }
+  if ((e.code === 'Space' || e.key === ' ' || e.code === 'Enter') && state === 'exfil' && exfilReady) {
+    e.preventDefault();
+    doExfil();
+  }
+});
+
+// ── Hold Breath ───────────────────────────────────────────────────────────────
+const BREATH_DURATION = 300;  // frames (~5s at 60fps)
+const BREATH_COOLDOWN = 600;  // frames (~10s)
+let holdBreath = false;
+let breathTimer = 0;
+let breathCooldown = 0;
+let breathUses = 3;
+
+function activateHoldBreath() {
+  if (breathCooldown > 0 || holdBreath || breathUses <= 0) return;
+  holdBreath = true;
+  breathTimer = BREATH_DURATION;
+  breathUses--;
+}
+
+// ── Scope Wobble ──────────────────────────────────────────────────────────────
+let wobbleTime = 0;
+let scopeX = W / 2, scopeY = H / 2;
+const SCOPE_R = 70;
+
+function updateWobble() {
+  wobbleTime += 0.025;
+  const m = MISSIONS[mission];
+  const amt = holdBreath ? 0 : m.wobble;
+  const wx = Math.sin(wobbleTime * 1.3) * amt + Math.sin(wobbleTime * 0.71) * amt * 0.4;
+  const wy = Math.cos(wobbleTime * 1.1) * amt + Math.cos(wobbleTime * 0.53) * amt * 0.4;
+  scopeX = Math.max(SCOPE_R, Math.min(W - SCOPE_R, mouseX + wx));
+  scopeY = Math.max(SCOPE_R, Math.min(H - SCOPE_R, mouseY + wy));
+}
+
+// ── Missions (procedurally generated, seeded so they're always identical) ─────
+function seededRand(seed) {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(1664525, s) + 1013904223) >>> 0; return s / 4294967296; };
+}
+
+const MISSIONS = (() => {
+  const rand = seededRand(0xDEADBEEF);
+
+  const locs = [
+    'City Street','Market Square','Dockside Alley','Night Rooftop','Convoy Yard',
+    'Train Station','Harbor Front','Warehouse District','Embassy Row','Airport Terminal',
+    'Hotel Lobby','Bridge Crossing','Subway Exit','Industrial Park','Shopping District',
+    'University Campus','Sports Arena','Power Plant','Naval Base','Mountain Pass',
+  ];
+
+  const outfits = [
+    ['#cc2200','red'],['#dd6600','orange'],['#cccccc','white'],['#001a66','dark blue'],
+    ['#1a5c1a','green'],['#660099','purple'],['#aa8800','gold'],['#cc0066','pink'],
+    ['#008888','teal'],['#665500','khaki'],['#cc4400','rust'],['#4400cc','indigo'],
+    ['#006655','seafoam'],['#770033','maroon'],['#2a4400','dark green'],['#003366','navy'],
+  ];
+
+  const skies = [
+    ['#0d1b2a','#1a2f4a'], // day blue
+    ['#1a1008','#2a1a10'], // golden hour
+    ['#0a0a1a','#12082a'], // dusk purple
+    ['#050510','#0a0820'], // deep night
+    ['#080808','#101018'], // overcast dark
+    ['#0d1010','#121e1e'], // foggy
+  ];
+
+  const briefs = [
+    (n,col,loc) => [`RADIO: ${n} HVT(s) confirmed in ${loc}.`,`Target(s) wearing ${col}. Armed and dangerous.`,'Engage on sight. No civilian casualties.'],
+    (n,col,loc) => [`RADIO: Intel update — ${n} hostile(s) in ${loc}.`,`ID: ${col} clothing. Threat level: HIGH.`,'Take them out. Protect the civilians.'],
+    (n,col,loc) => [`RADIO: Priority op. ${n} target(s) spotted.`,`Location: ${loc}. Attire: ${col}.`,'Green light to engage. Precision only.'],
+    (n,col,loc) => [`RADIO: ${loc} compromised by ${n} armed hostile(s).`,`Wearing ${col}. They know we\'re watching.`,'Neutralise all targets. Move fast.'],
+    (n,col,loc) => [`RADIO: Package spotted — ${n} escort(s) in ${loc}.`,`All in ${col}. High civilian density.`,'Eliminate escorts cleanly. Extract standing by.'],
+  ];
+
+  const exfils = [
+    next => [`RADIO: Area clear. Move to ${next}.`,'Follow the marked path.','Press SPACE or RUN.'],
+    next => [`RADIO: Targets down. Relocate to ${next}.`,'Exfil window is open. Move now.','Press SPACE or RUN.'],
+    next => [`RADIO: Good work. Proceed to ${next}.`,'Stay low. Eyes on the path.','Press SPACE or RUN.'],
+  ];
+
+  const missions = [];
+  for (let i = 0; i < 100; i++) {
+    const diff = i / 99;
+    const numT = Math.min(6, 1 + Math.floor(Math.sqrt(i * 1.5)));
+    const numC = Math.min(18, 4 + Math.floor(i / 8));
+    const wobble = 8 + diff * 32;
+    const gapH = Math.max(52, Math.round(162 - i * 1.1));
+    const gapY = 335 + (i % 3) * 5;
+
+    const locName = locs[i % locs.length] + (i >= locs.length ? ` ${Math.floor(i / locs.length) + 1}` : '');
+    const nextLoc = i < 99
+      ? locs[(i + 1) % locs.length] + ((i + 1) >= locs.length ? ` ${Math.floor((i + 1) / locs.length) + 1}` : '')
+      : 'HQ';
+
+    const [color, colorName] = outfits[i % outfits.length];
+    const sky = skies[i % skies.length];
+
+    const targets = [];
+    for (let t = 0; t < numT; t++) targets.push({ outfit: color, moving: rand() < 0.3 + diff * 0.5 });
+
+    missions.push({
+      name: locName,
+      sky,
+      briefing: briefs[i % briefs.length](numT, colorName, locName),
+      exfilText: i < 99 ? exfils[i % exfils.length](nextLoc)
+        : ['RADIO: All 100 missions complete.','Outstanding marksmanship, operator.','You are the finest sniper alive.'],
+      targets, civilians: numC, wobble, gapY, gapH,
+    });
+  }
+  return missions;
+})();
+
+// ── NPC System ────────────────────────────────────────────────────────────────
+class NPC {
+  constructor(x, y, outfit, isTarget, moving, armored = false, pogo = false, shielded = false) {
+    this.x = x;
+    this.y = y;
+    this.outfit = outfit;
+    this.isTarget = isTarget;
+    this.moving = moving;
+    this.armored = armored;
+    this.pogo = pogo;
+    this.shielded = shielded;
+    this.hp = shielded ? 3 : 1;
+    this.shieldFlash = 0;   // frames of white flash on shield hit
+    this.pogoTime = Math.random() * Math.PI * 2;
+    this.dir = Math.random() < 0.5 ? 1 : -1;
+    this.speed = moving ? (0.3 + Math.random() * 0.5) : 0;
+    this.alive = true;
+    this.deathTimer = 0;
+  }
+
+  update() {
+    if (!this.alive) { this.deathTimer++; return; }
+    if (this.moving) {
+      this.x += this.dir * this.speed;
+      if (this.x < 30) { this.x = 30; this.dir = 1; }
+      if (this.x > W - 30) { this.x = W - 30; this.dir = -1; }
+    }
+    if (this.pogo) this.pogoTime += 0.07;
+    if (this.shieldFlash > 0) this.shieldFlash--;
+  }
+
+  scale() {
+    const m = MISSIONS[mission];
+    const facadeBot = facadeData ? facadeData.facadeBot : m.gapY + Math.round(m.gapH * 0.62);
+    const top = facadeBot + 10, bot = m.gapY + m.gapH - 10;
+    return 0.4 + ((this.y - top) / Math.max(1, bot - top)) * 0.55;
+  }
+
+  // vertical bounce offset (negative = up)
+  pogoY() {
+    return this.pogo ? Math.abs(Math.sin(this.pogoTime)) * -44 * this.scale() : 0;
+  }
+
+  hitbox() {
+    const s = this.scale(), py = this.pogoY();
+    const hw = 14 * s, hh = 44 * s;
+    return { x: this.x - hw, y: this.y - hh * 0.85 + py, w: hw * 2, h: hh };
+  }
+
+  headbox() {
+    const s = this.scale(), py = this.pogoY();
+    const r = 10 * s;
+    return { x: this.x - r, y: this.y - 36 * s + py - r, w: r * 2, h: r * 2 };
+  }
+
+  draw(highlight) {
+    if (!this.alive && this.deathTimer > 60) return;
+    const s = this.scale();
+    const py = this.pogoY();
+    const alpha = this.alive ? 1 : Math.max(0, 1 - (this.deathTimer - 30) / 30);
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    if (highlight && this.isTarget && this.alive) {
+      ctx.shadowColor = '#ffee00';
+      ctx.shadowBlur = 18 * s;
+    }
+
+    // pogo stick (drawn behind person)
+    if (this.pogo) {
+      const groundY = this.y + 20 * s;
+      const bodyBotY = this.y + 2 * s + py;
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 3 * s;
+      ctx.beginPath();
+      ctx.moveTo(this.x, groundY);
+      ctx.lineTo(this.x, bodyBotY);
+      ctx.stroke();
+      // spring coils
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 2 * s;
+      const springLen = groundY - bodyBotY;
+      const coils = 4;
+      ctx.beginPath();
+      for (let i = 0; i <= coils * 4; i++) {
+        const t = i / (coils * 4);
+        const cx2 = this.x + Math.sin(t * Math.PI * 2 * coils) * 5 * s;
+        const cy = bodyBotY + springLen * t;
+        i === 0 ? ctx.moveTo(cx2, cy) : ctx.lineTo(cx2, cy);
+      }
+      ctx.stroke();
+    }
+
+    // body
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = this.outfit;
+    ctx.beginPath();
+    ctx.roundRect(this.x - 12 * s, this.y - 28 * s + py, 24 * s, 30 * s, 4 * s);
+    ctx.fill();
+
+    // armor vest overlay
+    if (this.armored) {
+      ctx.fillStyle = 'rgba(80,100,130,0.85)';
+      ctx.beginPath();
+      ctx.roundRect(this.x - 11 * s, this.y - 24 * s + py, 22 * s, 22 * s, 3 * s);
+      ctx.fill();
+      ctx.strokeStyle = '#aabbdd';
+      ctx.lineWidth = 1.5 * s;
+      ctx.stroke();
+      // plate lines
+      ctx.strokeStyle = 'rgba(150,180,220,0.5)';
+      ctx.lineWidth = s;
+      ctx.beginPath();
+      ctx.moveTo(this.x, this.y - 24 * s + py);
+      ctx.lineTo(this.x, this.y - 2 * s + py);
+      ctx.stroke();
+    }
+
+    // head
+    ctx.fillStyle = '#e8b87a';
+    ctx.beginPath();
+    ctx.arc(this.x, this.y - 36 * s + py, 9 * s, 0, Math.PI * 2);
+    ctx.fill();
+
+    // helmet for armored
+    if (this.armored) {
+      ctx.fillStyle = 'rgba(60,80,110,0.9)';
+      ctx.beginPath();
+      ctx.arc(this.x, this.y - 36 * s + py, 9 * s, Math.PI, 0);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(100,130,170,0.6)';
+      ctx.fillRect(this.x - 10 * s, this.y - 37 * s + py, 20 * s, 4 * s);
+    }
+
+    // legs (anchored to ground regardless of pogo)
+    ctx.strokeStyle = '#555';
+    ctx.lineWidth = 5 * s;
+    ctx.beginPath();
+    ctx.moveTo(this.x - 5 * s, this.y + 2 * s + py);
+    ctx.lineTo(this.x - 7 * s, this.y + 20 * s);
+    ctx.moveTo(this.x + 5 * s, this.y + 2 * s + py);
+    ctx.lineTo(this.x + 7 * s, this.y + 20 * s);
+    ctx.stroke();
+
+    // shield (drawn in front of person)
+    if (this.shielded && this.hp > 0) {
+      const shieldW = 30 * s, shieldH = 46 * s;
+      const sx2 = this.x - shieldW / 2;
+      const sy2 = this.y - 38 * s + py;
+      const hpRatio = this.hp / 3;
+      const flashMix = this.shieldFlash / 8;
+
+      // shield body — colour shifts red as hp drops
+      const r = Math.round(30 + (1 - hpRatio) * 180 + flashMix * 220);
+      const g = Math.round(120 * hpRatio + flashMix * 220);
+      const b = Math.round(200 * hpRatio + flashMix * 255);
+      ctx.fillStyle = `rgba(${r},${g},${b},0.55)`;
+      ctx.beginPath();
+      ctx.roundRect(sx2, sy2, shieldW, shieldH, 6 * s);
+      ctx.fill();
+
+      // shield border
+      ctx.strokeStyle = this.shieldFlash > 0 ? '#ffffff' : `rgba(${r},${g},${b},0.9)`;
+      ctx.lineWidth = 2.5 * s;
+      ctx.beginPath();
+      ctx.roundRect(sx2, sy2, shieldW, shieldH, 6 * s);
+      ctx.stroke();
+
+      // crack lines when damaged
+      if (this.hp < 3) {
+        ctx.strokeStyle = `rgba(255,255,255,${0.4 + flashMix * 0.4})`;
+        ctx.lineWidth = s;
+        ctx.beginPath();
+        // first crack
+        ctx.moveTo(this.x - 4 * s, sy2 + 8 * s);
+        ctx.lineTo(this.x + 2 * s, sy2 + 20 * s);
+        ctx.lineTo(this.x - 3 * s, sy2 + 30 * s);
+        ctx.stroke();
+      }
+      if (this.hp < 2) {
+        ctx.beginPath();
+        // second crack
+        ctx.moveTo(this.x + 5 * s, sy2 + 12 * s);
+        ctx.lineTo(this.x - 2 * s, sy2 + 22 * s);
+        ctx.lineTo(this.x + 6 * s, sy2 + 36 * s);
+        ctx.stroke();
+      }
+
+      // HP pips above shield
+      for (let pip = 0; pip < 3; pip++) {
+        ctx.fillStyle = pip < this.hp ? '#44ddff' : '#223333';
+        ctx.beginPath();
+        ctx.arc(this.x + (pip - 1) * 8 * s, sy2 - 6 * s, 3 * s, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // highlight glow + outline
+    if (highlight && this.isTarget && this.alive) {
+      ctx.strokeStyle = '#ffee00';
+      ctx.lineWidth = 2 * s;
+      ctx.globalAlpha = alpha * (0.6 + 0.4 * Math.sin(Date.now() * 0.006));
+      ctx.beginPath();
+      ctx.roundRect(this.x - 14 * s, this.y - 45 * s + py, 28 * s, 65 * s, 5 * s);
+      ctx.stroke();
+    }
+
+    ctx.restore();
+  }
+}
+
+let npcs = [];
+let shotsTotal = 0, killsTotal = 0, missionShots = 0;
+const MAX_BULLETS = 10;
+const START_BULLETS = 5;
+let bullets = START_BULLETS;
+
+function spawnNPCs() {
+  npcs = [];
+  windowNpcs = [];
+  const m = MISSIONS[mission];
+  computeFacade(m);
+  const spawnTop = facadeData.facadeBot + 10;
+  const spawnBot = m.gapY + m.gapH - 10;
+  const usedX = [];
+
+  function randX() {
+    let x, tries = 0;
+    do { x = 60 + Math.random() * (W - 120); tries++; }
+    while (usedX.some(ux => Math.abs(ux - x) < 50) && tries < 30);
+    usedX.push(x);
+    return x;
+  }
+
+  for (const t of m.targets) {
+    const y = spawnTop + Math.random() * (spawnBot - spawnTop);
+    const roll = mission >= 1 ? Math.random() : 1;
+    const armored  = roll < 0.30;
+    const pogo     = !armored && roll < 0.55;
+    const shielded = !armored && !pogo && roll < 0.75;
+    npcs.push(new NPC(randX(), y, t.outfit, true, t.moving, armored, pogo, shielded));
+  }
+  const civOutfits = ['#445566','#336655','#664433','#554466','#446633','#555533','#334466','#553344'];
+  for (let i = 0; i < m.civilians; i++) {
+    const y = spawnTop + Math.random() * (spawnBot - spawnTop);
+    const outfit = civOutfits[i % civOutfits.length];
+    npcs.push(new NPC(randX(), y, outfit, false, Math.random() < 0.7));
+  }
+  npcs.sort((a, b) => a.y - b.y);
+
+  // Window NPCs: civilians + occasional window target (mission 3+)
+  const litWindows = facadeData.windows.filter(w => w.lit && !w.curtain && !w.edge).sort(() => Math.random() - 0.5);
+  const numWinTargets = mission >= 2 && Math.random() < 0.4 ? 1 : 0;
+  const numWinCivs = 2 + Math.floor(Math.random() * 4);
+  let wi = 0;
+  for (let i = 0; i < numWinTargets && wi < litWindows.length; i++, wi++) {
+    windowNpcs.push(new WindowNPC(litWindows[wi], true));
+  }
+  for (let i = 0; i < numWinCivs && wi < litWindows.length; i++, wi++) {
+    windowNpcs.push(new WindowNPC(litWindows[wi], false));
+  }
+
+  // intel warning
+  const armoredTargets  = npcs.filter(n => n.isTarget && n.armored).length;
+  const pogoTargets     = npcs.filter(n => n.isTarget && n.pogo).length;
+  const shieldedTargets = npcs.filter(n => n.isTarget && n.shielded).length;
+  const windowTargets   = windowNpcs.filter(n => n.isTarget).length;
+  if (armoredTargets || pogoTargets || shieldedTargets || windowTargets) {
+    const lines = ['RADIO: Intel update —'];
+    if (armoredTargets)  lines.push(`  ${armoredTargets} target(s) armored. HEADSHOT REQUIRED.`);
+    if (pogoTargets)     lines.push(`  ${pogoTargets} target(s) on pogo sticks. Time your shot.`);
+    if (shieldedTargets) lines.push(`  ${shieldedTargets} target(s) with shields. 3 hits to kill.`);
+    if (windowTargets)   lines.push(`  ${windowTargets} target(s) spotted in building windows.`);
+    setTimeout(() => showRadio(lines), 3500);
+  }
+}
+
+// ── Particles ─────────────────────────────────────────────────────────────────
+const particles = [];
+class Particle {
+  constructor(x, y, col) {
+    this.x = x; this.y = y;
+    this.vx = (Math.random() - 0.5) * 4;
+    this.vy = -Math.random() * 3 - 1;
+    this.life = 1;
+    this.col = col;
+    this.r = 2 + Math.random() * 3;
+  }
+  update() { this.x += this.vx; this.y += this.vy; this.vy += 0.15; this.life -= 0.035; }
+  draw() {
+    ctx.globalAlpha = this.life;
+    ctx.fillStyle = this.col;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ── Muzzle flash ──────────────────────────────────────────────────────────────
+let muzzleTimer = 0;
+let flashTimer = 0;
+
+// ── Facade + Window system ────────────────────────────────────────────────────
+let facadeData = null;
+
+function computeFacade(m) {
+  const facadeTop = m.gapY + 6;
+  const facadeBot = Math.min(m.gapY + Math.round(m.gapH * 0.62), m.gapY + m.gapH - 50);
+  const numFloors = Math.min(5, 2 + Math.floor(mission / 25));
+
+  const blockDefs = [
+    { x: 0,   w: 193, col: '#16162a', trim: '#21213a', floors: numFloors },
+    { x: 203, w: 172, col: '#131320', trim: '#1d1d30', floors: Math.max(2, numFloors - 1) },
+    { x: 385, w: 233, col: '#1a1a2e', trim: '#252540', floors: numFloors },
+    { x: 628, w: 172, col: '#141424', trim: '#1f1f34', floors: Math.max(2, numFloors - 1) },
+  ];
+
+  const windows = [];
+  for (const b of blockDefs) {
+    const blockH = (facadeBot - facadeTop) * (b.floors / numFloors);
+    const blockTop = facadeBot - blockH;
+    const flH = blockH / b.floors;
+    const wPerFloor = Math.max(2, Math.floor((b.w - 16) / 48));
+    const winW = Math.min(38, Math.floor((b.w - 16) / wPerFloor - 6));
+    const winH = Math.round(flH * 0.52);
+    const colW = (b.w - 16) / wPerFloor;
+
+    for (let f = 0; f < b.floors; f++) {
+      const flTop = blockTop + f * flH;
+      for (let w = 0; w < wPerFloor; w++) {
+        const wx = Math.round(b.x + 8 + w * colW + (colW - winW) / 2);
+        const wy = Math.round(flTop + flH * 0.22);
+        const lit = Math.random() < 0.62;
+        windows.push({ bx: b.x, bw: b.w, x: wx, y: wy, w: winW, h: winH,
+          cx: wx + winW / 2, cy: wy + winH / 2,
+          lit, curtain: lit && Math.random() < 0.32,
+          floor: f, hasNPC: false, block: b,
+          edge: w === 0 || w === wPerFloor - 1 });
+      }
+    }
+  }
+
+  const streetY = facadeBot + 4;
+  facadeData = { blockDefs, windows, facadeTop, facadeBot, streetY, numFloors };
+}
+
+function drawApartments() {
+  if (!facadeData) return;
+  const { blockDefs, windows, facadeTop, facadeBot, numFloors } = facadeData;
+
+  for (const b of blockDefs) {
+    const blockH = (facadeBot - facadeTop) * (b.floors / numFloors);
+    const blockTop = facadeBot - blockH;
+    const flH = blockH / b.floors;
+
+    // wall
+    ctx.fillStyle = b.col;
+    ctx.fillRect(b.x, blockTop, b.w, blockH);
+
+    // roof ledge
+    ctx.fillStyle = b.trim;
+    ctx.fillRect(b.x - 2, blockTop - 3, b.w + 4, 5);
+
+    // floor separators + balcony rails
+    for (let f = 1; f < b.floors; f++) {
+      const lineY = blockTop + f * flH;
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(b.x, lineY - 1, b.w, 4);
+      ctx.fillStyle = b.trim;
+      ctx.fillRect(b.x + 3, lineY, b.w - 6, 3);
+      // railing posts
+      ctx.fillStyle = '#0a0a18';
+      for (let px = b.x + 8; px < b.x + b.w - 4; px += 10) {
+        ctx.fillRect(px, lineY - 5, 2, 5);
+      }
+    }
+
+    // AC units
+    ctx.fillStyle = '#0a0a18';
+    for (let f = 0; f < b.floors; f++) {
+      const acY = blockTop + f * flH + flH - 8;
+      ctx.fillRect(b.x + 5, acY, 10, 6);
+      ctx.fillRect(b.x + b.w - 15, acY, 10, 6);
+    }
+  }
+
+  // windows
+  for (const win of windows) {
+    if (win.lit) {
+      const lg = ctx.createLinearGradient(win.x, win.y, win.x, win.y + win.h);
+      lg.addColorStop(0, 'rgba(255,240,140,0.55)');
+      lg.addColorStop(1, 'rgba(255,195,70,0.32)');
+      ctx.fillStyle = lg;
+    } else {
+      ctx.fillStyle = 'rgba(4,4,12,0.85)';
+    }
+    ctx.fillRect(win.x, win.y, win.w, win.h);
+
+    if (win.curtain) {
+      ctx.fillStyle = 'rgba(110,75,45,0.5)';
+      ctx.fillRect(win.x + 1, win.y + 1, win.w * 0.28, win.h - 2);
+      ctx.fillRect(win.x + win.w - win.w * 0.28 - 1, win.y + 1, win.w * 0.28, win.h - 2);
+    }
+
+    // frame + cross
+    ctx.strokeStyle = '#2a2a44';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(win.x, win.y, win.w, win.h);
+    ctx.beginPath();
+    ctx.moveTo(win.cx, win.y); ctx.lineTo(win.cx, win.y + win.h);
+    ctx.moveTo(win.x, win.y + win.h * 0.52); ctx.lineTo(win.x + win.w, win.y + win.h * 0.52);
+    ctx.stroke();
+
+    // sill
+    ctx.fillStyle = '#1e1e32';
+    ctx.fillRect(win.x - 2, win.y + win.h, win.w + 4, 3);
+  }
+}
+
+// ── Window NPCs ───────────────────────────────────────────────────────────────
+class WindowNPC {
+  constructor(win, isTarget) {
+    this.win = win;
+    this.isTarget = isTarget;
+    this.alive = true;
+    this.deathTimer = 0;
+    this.visible = true;
+    this.showTimer = isTarget ? Infinity : 150 + Math.random() * 280;
+    win.hasNPC = true;
+  }
+
+  update() {
+    if (!this.alive) { this.deathTimer++; return; }
+    if (this.showTimer !== Infinity) {
+      this.showTimer--;
+      if (this.showTimer <= 0) {
+        this.visible = !this.visible;
+        this.showTimer = this.visible ? 140 + Math.random() * 300 : 55 + Math.random() * 145;
+      }
+    }
+  }
+
+  hitbox() {
+    if (!this.visible || !this.alive) return { x: -9999, y: -9999, w: 0, h: 0 };
+    const { win } = this;
+    return { x: win.x, y: win.y, w: win.w, h: win.h };
+  }
+
+  draw(highlight) {
+    if (!this.alive && this.deathTimer > 50) return;
+    if (!this.visible && this.alive) return;
+    const { win } = this;
+    const alpha = this.alive ? 1 : Math.max(0, 1 - this.deathTimer / 40);
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.rect(win.x + 1, win.y + 1, win.w - 2, win.h - 2);
+    ctx.clip();
+
+    const cx = win.cx;
+    const baseY = win.y + win.h * 0.95;
+    const headR = win.h * 0.2;
+    const torsoH = win.h * 0.42;
+    const shoulderW = win.w * 0.55;
+
+    if (highlight && this.isTarget && this.alive) {
+      ctx.shadowColor = '#ff2200';
+      ctx.shadowBlur = 14;
+    }
+
+    // torso silhouette
+    ctx.fillStyle = this.isTarget && this.alive ? '#cc1100' : '#0e0e18';
+    ctx.beginPath();
+    ctx.moveTo(cx - shoulderW / 2, baseY);
+    ctx.quadraticCurveTo(cx - shoulderW / 2, baseY - torsoH * 0.15, cx - shoulderW * 0.38, baseY - torsoH);
+    ctx.quadraticCurveTo(cx, baseY - torsoH * 1.05, cx + shoulderW * 0.38, baseY - torsoH);
+    ctx.quadraticCurveTo(cx + shoulderW / 2, baseY - torsoH * 0.15, cx + shoulderW / 2, baseY);
+    ctx.fill();
+
+    // head
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = this.isTarget && this.alive ? '#dd2200' : '#0e0e18';
+    ctx.beginPath();
+    ctx.arc(cx, baseY - torsoH - headR * 0.85, headR, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (highlight && this.isTarget && this.alive) {
+      ctx.strokeStyle = '#ff3300';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = alpha * (0.55 + 0.45 * Math.sin(Date.now() * 0.006));
+      ctx.strokeRect(win.x, win.y, win.w, win.h);
+    }
+    ctx.restore();
+  }
+}
+
+let windowNpcs = [];
+
+// ── Scene drawing ─────────────────────────────────────────────────────────────
+function drawScene() {
+  const m = MISSIONS[mission];
+
+  // sky (full canvas)
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H);
+  skyGrad.addColorStop(0, m.sky[0]);
+  skyGrad.addColorStop(1, m.sky[1]);
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  if (mission >= 3) {
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (let i = 0; i < 60; i++) {
+      ctx.beginPath();
+      ctx.arc((i * 137.5) % W, (i * 89.3) % 350, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  drawApartments();
+
+  if (!facadeData) return;
+  const sy = facadeData.streetY;
+
+  // street
+  ctx.fillStyle = '#1c1c1c';
+  ctx.fillRect(0, sy, W, H - sy);
+  ctx.fillStyle = '#252525';
+  ctx.fillRect(0, sy, W, 6);
+  // yellow line
+  ctx.strokeStyle = '#775500';
+  ctx.setLineDash([38, 28]);
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(0, sy + Math.round((H - sy) * 0.45));
+  ctx.lineTo(W, sy + Math.round((H - sy) * 0.45));
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // sidewalk
+  ctx.fillStyle = '#2e2e2e';
+  ctx.fillRect(0, sy, W, Math.round((H - sy) * 0.28));
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(0, sy + Math.round((H - sy) * 0.27), W, 3);
+}
+
+function drawWall() {
+  const m = MISSIONS[mission];
+  ctx.fillStyle = '#050508';
+  ctx.fillRect(0, 0, W, m.gapY);
+  ctx.fillRect(0, m.gapY + m.gapH, W, H - (m.gapY + m.gapH));
+  // gap edges
+  ctx.fillStyle = '#0a0a10';
+  ctx.fillRect(0, m.gapY - 4, W, 4);
+  ctx.fillRect(0, m.gapY + m.gapH, W, 4);
+}
+
+function drawScope() {
+  // dark overlay outside scope
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.88)';
+  ctx.beginPath();
+  ctx.rect(0, 0, W, H);
+  ctx.arc(scopeX, scopeY, SCOPE_R, 0, Math.PI * 2, true);
+  ctx.fill('evenodd');
+
+  // scope ring
+  ctx.strokeStyle = '#334';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(scopeX, scopeY, SCOPE_R, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // lens tint
+  const lensGrad = ctx.createRadialGradient(scopeX, scopeY, 0, scopeX, scopeY, SCOPE_R);
+  lensGrad.addColorStop(0, 'rgba(0,20,40,0.05)');
+  lensGrad.addColorStop(1, 'rgba(0,0,0,0.3)');
+  ctx.fillStyle = lensGrad;
+  ctx.beginPath();
+  ctx.arc(scopeX, scopeY, SCOPE_R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // crosshair
+  ctx.strokeStyle = 'rgba(200,255,200,0.85)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(scopeX - SCOPE_R + 8, scopeY); ctx.lineTo(scopeX - 10, scopeY);
+  ctx.moveTo(scopeX + 10, scopeY);          ctx.lineTo(scopeX + SCOPE_R - 8, scopeY);
+  ctx.moveTo(scopeX, scopeY - SCOPE_R + 8); ctx.lineTo(scopeX, scopeY - 10);
+  ctx.moveTo(scopeX, scopeY + 10);          ctx.lineTo(scopeX, scopeY + SCOPE_R - 8);
+  ctx.stroke();
+
+  // centre dot
+  ctx.fillStyle = 'rgba(200,255,200,0.9)';
+  ctx.beginPath();
+  ctx.arc(scopeX, scopeY, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // range marks
+  ctx.strokeStyle = 'rgba(200,255,200,0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i <= 3; i++) {
+    const tick = i * 16;
+    ctx.beginPath();
+    ctx.moveTo(scopeX - 6, scopeY + tick); ctx.lineTo(scopeX + 6, scopeY + tick);
+    ctx.moveTo(scopeX - 6, scopeY - tick); ctx.lineTo(scopeX + 6, scopeY - tick);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawMuzzleFlash() {
+  if (muzzleTimer <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = muzzleTimer / 8;
+  ctx.fillStyle = '#ffffaa';
+  ctx.beginPath();
+  ctx.arc(scopeX, scopeY, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ── Hold breath UI ────────────────────────────────────────────────────────────
+const BREATH_BTN = { x: 300, y: 568, w: 200, h: 26 };
+
+function drawBreathUI() {
+  const barW = 200, barH = 14;
+  const bx = (W - barW) / 2, by = 558;
+
+  // label
+  ctx.fillStyle = '#aabbcc';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(`HOLD BREATH  [SPACE]  (${breathUses} left)`, W / 2, by - 4);
+
+  // bar background
+  ctx.fillStyle = '#111';
+  ctx.fillRect(bx, by, barW, barH);
+
+  if (holdBreath) {
+    const ratio = breathTimer / BREATH_DURATION;
+    ctx.fillStyle = `hsl(${ratio * 120}, 80%, 40%)`;
+    ctx.fillRect(bx, by, barW * ratio, barH);
+    ctx.fillStyle = '#fff';
+    ctx.fillText('HOLDING BREATH', W / 2, by + barH + 12);
+  } else if (breathCooldown > 0) {
+    const ratio = 1 - breathCooldown / BREATH_COOLDOWN;
+    ctx.fillStyle = '#334';
+    ctx.fillRect(bx, by, barW * ratio, barH);
+    ctx.fillStyle = '#556';
+    ctx.fillText('RECHARGING...', W / 2, by + barH + 12);
+  } else if (breathUses <= 0) {
+    ctx.fillStyle = '#220000';
+    ctx.fillRect(bx, by, barW, barH);
+    ctx.fillStyle = '#664444';
+    ctx.fillText('NO USES LEFT', W / 2, by + barH + 12);
+  } else {
+    ctx.fillStyle = '#007733';
+    ctx.fillRect(bx, by, barW, barH);
+    ctx.fillStyle = '#aaffcc';
+    ctx.fillText('READY', W / 2, by + barH + 12);
+  }
+
+  // mobile button
+  ctx.strokeStyle = breathCooldown > 0 ? '#334' : '#007733';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx, by, barW, barH);
+
+  // shot counter
+  // bullet HUD — top centre
+  const bSize = 18, bGap = 8;
+  const totalW = MAX_BULLETS * bSize + (MAX_BULLETS - 1) * bGap;
+  const bOffsetX = 160;
+  const bStartX = (W - totalW) / 2 + bOffsetX;
+  const bY = 12;
+  ctx.fillStyle = '#aabbcc';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('AMMO', W / 2 + bOffsetX, bY + bSize + 14);
+  for (let i = 0; i < MAX_BULLETS; i++) {
+    const bx = bStartX + i * (bSize + bGap);
+    const filled = i < bullets;
+    // bullet shell shape
+    ctx.fillStyle = filled ? '#ffcc00' : '#223';
+    ctx.strokeStyle = filled ? '#ffaa00' : '#445';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    // body
+    ctx.roundRect(bx + 5, bY + 5, 8, 11, 2);
+    ctx.fill();
+    ctx.stroke();
+    // tip
+    ctx.beginPath();
+    ctx.moveTo(bx + 5, bY + 5);
+    ctx.lineTo(bx + 9, bY);
+    ctx.lineTo(bx + 13, bY + 5);
+    ctx.fillStyle = filled ? '#ffdd44' : '#334';
+    ctx.fill();
+  }
+
+  const alive = npcs.filter(n => n.isTarget && n.alive).length
+              + windowNpcs.filter(n => n.isTarget && n.alive).length;
+  ctx.fillStyle = '#aabbcc';
+  ctx.textAlign = 'left';
+  ctx.fillText(`SHOTS: ${missionShots}`, 20, 590);
+  ctx.textAlign = 'right';
+  ctx.fillText(`TARGETS: ${alive}`, W - 20, 590);
+  ctx.textAlign = 'left';
+}
+
+// ── Radio text ─────────────────────────────────────────────────────────────────
+let radioLines = [];
+let radioTimer = 0;
+const RADIO_DURATION = 240; // frames to show radio
+
+function showRadio(lines) {
+  radioLines = lines;
+  radioTimer = RADIO_DURATION;
+}
+
+function drawRadio() {
+  if (radioTimer <= 0) return;
+  const alpha = Math.min(1, radioTimer / 30);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(0, 0, W, 70);
+  ctx.fillStyle = '#00ff88';
+  ctx.font = 'bold 13px Courier New';
+  ctx.textAlign = 'left';
+  for (let i = 0; i < radioLines.length; i++) {
+    ctx.fillText('▌ ' + radioLines[i], 20, 20 + i * 18);
+  }
+  ctx.restore();
+}
+
+// ── Exfil arrows ──────────────────────────────────────────────────────────────
+function drawExfilPath() {
+  const t = Date.now() * 0.003;
+  ctx.save();
+  ctx.globalAlpha = 0.7 + 0.3 * Math.sin(t);
+  ctx.fillStyle = '#ffee00';
+  ctx.shadowColor = '#ffee00';
+  ctx.shadowBlur = 15;
+
+  // arrows along street toward right side
+  for (let i = 0; i < 5; i++) {
+    const ax = 120 + i * 130 + ((t * 60) % 130);
+    const ay = 450;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay - 14);
+    ctx.lineTo(ax + 20, ay);
+    ctx.lineTo(ax, ay + 14);
+    ctx.lineTo(ax + 5, ay);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // destination door highlight
+  ctx.strokeStyle = '#ffee00';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(W - 80, 330, 50, 65);
+  ctx.fillStyle = '#ffee00';
+  ctx.font = 'bold 11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('MOVE HERE', W - 55, 322);
+
+  ctx.restore();
+}
+
+// ── Shooting ──────────────────────────────────────────────────────────────────
+function tryShoot(sx, sy) {
+  if (bullets <= 0) {
+    showRadio(['RADIO: Out of ammo! Mission failed.']);
+    setTimeout(() => { state = 'game_over'; }, 1200);
+    return;
+  }
+  bullets--;
+  muzzleTimer = 8;
+  missionShots++;
+  shotsTotal++;
+
+  // sort by y desc so front NPCs get priority
+  const sorted = [...npcs].filter(n => n.alive).sort((a, b) => b.y - a.y);
+  for (const npc of sorted) {
+    const hb = npc.hitbox();
+    if (sx >= hb.x && sx <= hb.x + hb.w && sy >= hb.y && sy <= hb.y + hb.h) {
+      if (npc.isTarget) {
+        if (npc.armored) {
+          const head = npc.headbox();
+          const headshot = sx >= head.x && sx <= head.x + head.w && sy >= head.y && sy <= head.y + head.h;
+          if (!headshot) {
+            for (let i = 0; i < 8; i++) particles.push(new Particle(sx, sy, '#8899bb'));
+            showRadio(['RADIO: Body shot — no effect!', 'Target is armored. AIM FOR THE HEAD.']);
+            return;
+          }
+        }
+        if (npc.shielded && npc.hp > 0) {
+          npc.hp--;
+          npc.shieldFlash = 8;
+          for (let i = 0; i < 10; i++) particles.push(new Particle(sx, sy, npc.hp > 0 ? '#44aaff' : '#aaddff'));
+          if (npc.hp > 0) {
+            showRadio([`RADIO: Shield hit! ${npc.hp} hit(s) remaining.`]);
+            return;
+          }
+          showRadio(['RADIO: Shield destroyed! One more shot!']);
+          return;
+        }
+        npc.alive = false;
+        killsTotal++;
+        bullets = Math.min(bullets + 3, MAX_BULLETS);
+        for (let i = 0; i < 12; i++) particles.push(new Particle(npc.x, npc.y - 20 * npc.scale(), '#aa0000'));
+        showRadio(['RADIO: Target down. +3 ammo.']);
+        checkAllTargetsDown();
+      } else {
+        flashTimer = 60;
+        showRadio(['RADIO: Abort! Wrong target! Civilian down!']);
+        setTimeout(() => { state = 'game_over'; }, 1200);
+      }
+      return;
+    }
+  }
+
+  // check window NPCs
+  for (const wn of windowNpcs) {
+    const hb = wn.hitbox();
+    if (sx >= hb.x && sx <= hb.x + hb.w && sy >= hb.y && sy <= hb.y + hb.h) {
+      if (wn.isTarget) {
+        wn.alive = false;
+        killsTotal++;
+        bullets = Math.min(bullets + 3, MAX_BULLETS);
+        for (let i = 0; i < 8; i++) particles.push(new Particle(wn.win.cx, wn.win.cy, '#aa0000'));
+        showRadio(['RADIO: Window target eliminated. +3 ammo.']);
+        checkAllTargetsDown();
+      } else {
+        flashTimer = 60;
+        showRadio(['RADIO: Abort! Civilian in window — wrong target!']);
+        setTimeout(() => { state = 'game_over'; }, 1200);
+      }
+      return;
+    }
+  }
+}
+
+function checkAllTargetsDown() {
+  const streetLeft = npcs.filter(n => n.isTarget && n.alive).length;
+  const windowLeft = windowNpcs.filter(n => n.isTarget && n.alive).length;
+  if (streetLeft + windowLeft === 0) {
+    setTimeout(() => {
+      state = 'exfil';
+      exfilReady = false;
+      showRadio(MISSIONS[mission].exfilText);
+      setTimeout(() => { exfilReady = true; }, 2500);
+    }, 800);
+  }
+}
+
+// ── Screens ───────────────────────────────────────────────────────────────────
+function drawBtn(label, x, y, w, h) {
+  const hover = clickX >= x && clickX <= x + w && clickY >= y && clickY <= y + h;
+  ctx.fillStyle = hover ? '#0099ee' : '#0066bb';
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, 8);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x + w / 2, y + h / 2 + 5);
+  return mouseX >= x && mouseX <= x + w && mouseY >= y && mouseY <= y + h;
+}
+
+function inBtn(x, y, w, h) {
+  return clickX >= x && clickX <= x + w && clickY >= y && clickY <= y + h;
+}
+
+function menuBg() {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0a0a1a'); bg.addColorStop(1, '#0d1020');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  for (let i = 0; i < 80; i++) {
+    ctx.beginPath();
+    ctx.arc((i * 137.5) % W, (i * 89.3) % H, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function startMission(idx) {
+  mission = idx; missionShots = 0; bullets = START_BULLETS;
+  spawnNPCs();
+  state = 'briefing'; briefTimer = 180;
+  showRadio(MISSIONS[mission].briefing);
+}
+
+function drawMenu() {
+  menuBg();
+
+  ctx.save();
+  ctx.font = 'bold 56px Courier New';
+  ctx.textAlign = 'center';
+  const tg = ctx.createLinearGradient(0, 180, 0, 240);
+  tg.addColorStop(0, '#00aaff'); tg.addColorStop(1, '#aa44ff');
+  ctx.fillStyle = tg;
+  ctx.fillText("SNIPER'S EYE", W / 2, 210);
+  ctx.restore();
+
+  ctx.fillStyle = '#667788';
+  ctx.font = '13px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('Eliminate radio-designated targets. Hold breath to steady your scope.', W / 2, 244);
+
+  const hasProgress = (save.unlockedUpTo || 0) > 0;
+  if (hasProgress) {
+    drawBtn('NEW GAME', 220, 290, 160, 44);
+    if (clicked && inBtn(220, 290, 160, 44)) { shotsTotal = 0; killsTotal = 0; startMission(0); }
+    drawBtn('SELECT MISSION', 420, 290, 160, 44);
+    if (clicked && inBtn(420, 290, 160, 44)) state = 'missionselect';
+    ctx.fillStyle = '#445566';
+    ctx.font = '12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Progress: Mission ${(save.unlockedUpTo || 0) + 1} / 100 reached`, W / 2, 360);
+  } else {
+    drawBtn('PLAY', 320, 290, 160, 44);
+    if (clicked && inBtn(320, 290, 160, 44)) { shotsTotal = 0; killsTotal = 0; startMission(0); }
+  }
+
+  ctx.fillStyle = '#334';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('SPACE — hold breath  |  CLICK — shoot  |  MOUSE — aim', W / 2, 420);
+}
+
+function drawMissionSelect() {
+  menuBg();
+
+  ctx.fillStyle = '#e0e0ff';
+  ctx.font = 'bold 22px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('SELECT MISSION', W / 2, 30);
+
+  const cols = 10, rows = 10;
+  const tileW = 68, tileH = 40, gap = 4;
+  const gridW = cols * tileW + (cols - 1) * gap;
+  const startX = (W - gridW) / 2;
+  const startY = 45;
+  const unlocked = save.unlockedUpTo || 0;
+
+  for (let i = 0; i < 100; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const tx = startX + col * (tileW + gap);
+    const ty = startY + row * (tileH + gap);
+    const available = i <= unlocked;
+    const hover = available && mouseX >= tx && mouseX <= tx + tileW && mouseY >= ty && mouseY <= ty + tileH;
+
+    ctx.fillStyle = available ? (hover ? '#1e3a52' : '#0f2030') : '#0a0a14';
+    ctx.strokeStyle = available ? (hover ? '#55aadd' : '#2a5a7a') : '#181828';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(tx, ty, tileW, tileH, 4);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    if (available) {
+      ctx.fillStyle = hover ? '#88ddff' : '#4499cc';
+      ctx.font = `bold ${i < 9 ? 13 : 12}px Courier New`;
+      ctx.fillText(`${i + 1}`, tx + tileW / 2, ty + tileH / 2 + 4);
+      if (clicked && clickX >= tx && clickX <= tx + tileW && clickY >= ty && clickY <= ty + tileH) {
+        startMission(i);
+      }
+    } else {
+      ctx.fillStyle = '#2a2a3a';
+      ctx.font = '11px Courier New';
+      ctx.fillText('🔒', tx + tileW / 2, ty + tileH / 2 + 4);
+    }
+  }
+
+  // hover tooltip
+  const ht = save.unlockedUpTo || 0;
+  for (let i = 0; i <= ht; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const tx = startX + col * (tileW + gap);
+    const ty = startY + row * (tileH + gap);
+    if (mouseX >= tx && mouseX <= tx + tileW && mouseY >= ty && mouseY <= ty + tileH) {
+      ctx.fillStyle = 'rgba(0,0,0,0.85)';
+      ctx.fillRect(mouseX + 10, mouseY - 28, 180, 22);
+      ctx.fillStyle = '#aaccee';
+      ctx.font = '11px Courier New';
+      ctx.textAlign = 'left';
+      ctx.fillText(`M${i + 1}: ${MISSIONS[i].name}`, mouseX + 15, mouseY - 12);
+      break;
+    }
+  }
+
+  ctx.fillStyle = '#445566';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${unlocked + 1} / 100 missions unlocked`, W / 2, 497);
+
+  drawBtn('BACK', 320, 510, 160, 36);
+  if (clicked && inBtn(320, 510, 160, 36)) state = 'menu';
+}
+
+function drawBriefing() {
+  drawScene();
+  drawWall();
+
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+  ctx.font = 'bold 28px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#00ff88';
+  ctx.fillText(`MISSION ${mission + 1}: ${MISSIONS[mission].name.toUpperCase()}`, W / 2, 220);
+  ctx.restore();
+
+  drawRadio();
+
+  const ratio = 1 - briefTimer / 180;
+  ctx.fillStyle = '#334';
+  ctx.fillRect(250, 300, 300, 8);
+  ctx.fillStyle = '#00aaff';
+  ctx.fillRect(250, 300, 300 * ratio, 8);
+  ctx.fillStyle = '#778';
+  ctx.font = '12px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('Deploying...', W / 2, 330);
+
+  briefTimer--;
+  if (briefTimer <= 0) { state = 'playing'; holdBreath = false; breathTimer = 0; breathCooldown = 0; breathUses = 3; }
+}
+
+function drawPlaying() {
+  // update
+  updateWobble();
+
+  if (holdBreath) {
+    breathTimer--;
+    if (breathTimer <= 0) { holdBreath = false; breathCooldown = BREATH_COOLDOWN; }
+  } else if (breathCooldown > 0) {
+    breathCooldown--;
+  }
+
+  for (const n of npcs) n.update();
+  for (const p of particles) p.update();
+  particles.splice(0, particles.length, ...particles.filter(p => p.life > 0));
+  if (muzzleTimer > 0) muzzleTimer--;
+  if (radioTimer > 0) radioTimer--;
+  if (flashTimer > 0) flashTimer--;
+
+  // handle breath bar tap on mobile
+  if (clicked) {
+    const bx = (W - 200) / 2, by = 558;
+    if (clickX >= bx && clickX <= bx + 200 && clickY >= by && clickY <= by + 14) {
+      activateHoldBreath();
+    } else {
+      tryShoot(scopeX, scopeY);
+    }
+  }
+
+  // draw
+  drawScene();
+  for (const wn of windowNpcs) { wn.update(); wn.draw(true); }
+  npcs.sort((a, b) => a.y - b.y);
+  for (const n of npcs) n.draw(true);
+
+  ctx.save();
+  for (const p of particles) p.draw();
+  ctx.restore();
+
+  drawWall();
+  drawScope();
+  drawMuzzleFlash();
+  drawRadio();
+  drawBreathUI();
+
+  // red flash on civilian hit
+  if (flashTimer > 0) {
+    ctx.fillStyle = `rgba(180,0,0,${flashTimer / 60 * 0.45})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawExfil() {
+  updateWobble();
+  if (radioTimer > 0) radioTimer--;
+
+  drawScene();
+  for (const wn of windowNpcs) wn.draw(false);
+  npcs.sort((a, b) => a.y - b.y);
+  for (const n of npcs) n.draw(false);
+  drawExfilPath();
+  drawWall();
+  drawScope();
+  drawRadio();
+
+  // run button (mobile)
+  if (exfilReady) {
+    drawBtn('RUN  ▶', 320, 545, 160, 36);
+    if (clicked && inBtn(320, 545, 160, 36)) doExfil();
+    ctx.fillStyle = '#778';
+    ctx.font = '12px Courier New';
+    ctx.textAlign = 'center';
+    ctx.fillText('Press SPACE or tap RUN to move', W / 2, 538);
+  }
+}
+
+function doExfil() {
+  if (exfilDone) return;
+  exfilDone = true;
+  transitioning = true;
+  transTimer = 90;
+}
+
+function drawTransition() {
+  if (!transitioning) return;
+  transTimer--;
+  const alpha = transTimer < 45 ? (45 - transTimer) / 45 : (90 - transTimer) / 45;
+  ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+  ctx.fillRect(0, 0, W, H);
+  if (transTimer <= 0) {
+    transitioning = false;
+    exfilDone = false;
+    if (mission + 1 >= MISSIONS.length) {
+      state = 'win';
+    } else {
+      mission++;
+      if (mission > (save.unlockedUpTo || 0)) { save.unlockedUpTo = mission; persist(); }
+      missionShots = 0; bullets = START_BULLETS;
+      spawnNPCs();
+      state = 'briefing';
+      briefTimer = 180;
+      showRadio(MISSIONS[mission].briefing);
+    }
+  }
+}
+
+function drawGameOver() {
+  drawScene();
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.font = 'bold 48px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#cc1111';
+  ctx.fillText('MISSION FAILED', W / 2, 220);
+
+  ctx.fillStyle = '#aabbcc';
+  ctx.font = '16px Courier New';
+  ctx.fillText('Civilian casualty — mission aborted.', W / 2, 270);
+  ctx.fillText(`Shots fired: ${missionShots}`, W / 2, 300);
+
+  drawBtn('RETRY', 180, 340, 130, 40);
+  drawBtn('MISSIONS', 330, 340, 140, 40);
+  drawBtn('MENU', 490, 340, 130, 40);
+
+  if (clicked) {
+    if (inBtn(180, 340, 130, 40)) { missionShots = 0; bullets = START_BULLETS; spawnNPCs(); state = 'briefing'; briefTimer = 180; showRadio(MISSIONS[mission].briefing); }
+    if (inBtn(330, 340, 140, 40)) state = 'missionselect';
+    if (inBtn(490, 340, 130, 40)) state = 'menu';
+  }
+}
+
+function drawWin() {
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0a1a0a'); bg.addColorStop(1, '#001a00');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+
+  ctx.font = 'bold 50px Courier New';
+  ctx.textAlign = 'center';
+  const tg = ctx.createLinearGradient(0, 160, 0, 220);
+  tg.addColorStop(0, '#00ff88'); tg.addColorStop(1, '#00aaff');
+  ctx.fillStyle = tg;
+  ctx.fillText('ALL CLEAR', W / 2, 200);
+
+  ctx.fillStyle = '#aaccbb';
+  ctx.font = '16px Courier New';
+  ctx.fillText('All 5 missions complete. Outstanding marksmanship.', W / 2, 250);
+  ctx.fillText(`Total shots fired: ${shotsTotal}   Total kills: ${killsTotal}`, W / 2, 280);
+  const acc = shotsTotal > 0 ? Math.round(killsTotal / shotsTotal * 100) : 0;
+  ctx.fillText(`Accuracy: ${acc}%`, W / 2, 308);
+
+  drawBtn('PLAY AGAIN', 200, 360, 160, 44);
+  drawBtn('MISSIONS', 440, 360, 160, 44);
+  if (clicked) {
+    if (inBtn(200, 360, 160, 44)) { mission = 0; missionShots = 0; shotsTotal = 0; killsTotal = 0; spawnNPCs(); state = 'briefing'; briefTimer = 180; showRadio(MISSIONS[0].briefing); }
+    if (inBtn(440, 360, 160, 44)) state = 'missionselect';
+  }
+}
+
+// ── Main loop ─────────────────────────────────────────────────────────────────
+function loop() {
+  ctx.clearRect(0, 0, W, H);
+
+  switch (state) {
+    case 'menu':          drawMenu();          break;
+    case 'missionselect': drawMissionSelect(); break;
+    case 'briefing':      drawBriefing();      break;
+    case 'playing':       drawPlaying();  break;
+    case 'exfil':         drawExfil();    break;
+    case 'game_over':     drawGameOver(); break;
+    case 'win':           drawWin();      break;
+  }
+
+  if (transitioning) drawTransition();
+
+  clicked = false;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
