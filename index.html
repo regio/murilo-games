@@ -132,6 +132,17 @@
     }
 
     body > * { position: relative; z-index: 1; }
+
+    #visitorCounter {
+      display: none;
+      position: fixed;
+      bottom: 16px;
+      right: 20px;
+      font-size: 0.78rem;
+      color: #555577;
+      letter-spacing: 1px;
+      z-index: 10;
+    }
   </style>
 </head>
 <body>
@@ -167,5 +178,27 @@
     </div>
     <!-- Add more game cards here -->
   </main>
+  <div id="visitorCounter">visitors: <span id="visitorCount">…</span></div>
+
+  <script>
+    if (localStorage.getItem('maze_is_admin') === '1') {
+      document.getElementById('visitorCounter').style.display = 'block';
+      const poll = setInterval(() => {
+        if (window.goatcounter && window.goatcounter.visit_count) {
+          clearInterval(poll);
+          document.getElementById('visitorCount').textContent = '';
+          window.goatcounter.visit_count({ append: 'visitorCount' });
+        }
+      }, 200);
+      setTimeout(() => {
+        clearInterval(poll);
+        if (!document.getElementById('visitorCount').textContent.trim())
+          document.getElementById('visitorCount').textContent = '—';
+      }, 8000);
+    }
+  </script>
+
+  <script data-goatcounter="https://murilo.goatcounter.com/count"
+          async src="//gc.zgo.at/count.js"></script>
 </body>
 </html>
