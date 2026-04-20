@@ -1368,12 +1368,13 @@ function drawExfil() {
 
   // run button (mobile)
   if (exfilReady) {
-    drawBtn('RUN  ▶', 320, 545, 160, 36);
-    if (clicked && inBtn(320, 545, 160, 36)) doExfil();
+    const runY = isMobile ? 470 : 545;
+    drawBtn('RUN  ▶', 320, runY, 160, 36);
+    if (clicked && inBtn(320, runY, 160, 36)) doExfil();
     ctx.fillStyle = '#778';
     ctx.font = '12px Courier New';
     ctx.textAlign = 'center';
-    ctx.fillText('Press SPACE or tap RUN to move', W / 2, 538);
+    ctx.fillText(isMobile ? 'Tap RUN to move' : 'Press SPACE or tap RUN to move', W / 2, runY - 10);
   }
 }
 
