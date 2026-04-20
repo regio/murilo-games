@@ -1,0 +1,1716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The Impossible Maze</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #111;
+      color: #ccc;
+      font-family: 'Courier New', Courier, monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 50px 20px 100px;
+      min-height: 100vh;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      letter-spacing: 6px;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.78rem;
+      color: #555;
+      letter-spacing: 3px;
+      margin-bottom: 36px;
+    }
+
+    canvas {
+      display: block;
+      border: 2px solid #2a2a2a;
+      border-bottom: none;
+    }
+
+    /* ── maze reaction bar ── */
+    .reaction-box {
+      width: 480px;
+      max-width: 100%;
+      background: #080808;
+      border: 2px solid #2a2a2a;
+      border-top: 1px solid #1c1c1c;
+      padding: 9px 14px;
+      font-size: 0.74rem;
+      color: #666;
+      font-style: italic;
+      letter-spacing: 1px;
+      min-height: 36px;
+      opacity: 0;
+      transition: opacity 0.45s ease;
+    }
+    .reaction-box.visible { opacity: 1; }
+    .reaction-box .tag {
+      font-style: normal;
+      font-size: 0.6rem;
+      letter-spacing: 3px;
+      color: #2e2e2e;
+      margin-right: 8px;
+    }
+
+    .gap { height: 60px; }
+
+    /* ── input section ── */
+    .input-section {
+      width: 100%;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .input-section h2 {
+      font-size: 0.72rem;
+      letter-spacing: 2px;
+      color: #666;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      line-height: 1.6;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      background: #0d0d0d;
+      color: #ddd;
+      border: 1px solid #2e2e2e;
+      padding: 12px 14px;
+      font-family: inherit;
+      font-size: 0.88rem;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #555; }
+    textarea::placeholder { color: #3a3a3a; }
+    textarea:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    .tries-display {
+      font-size: 0.65rem;
+      letter-spacing: 2px;
+      color: #444;
+      margin-top: 10px;
+      text-transform: uppercase;
+    }
+    .tries-display.warn { color: #6a3a2a; }
+    .tries-display.out  { color: #3a1a1a; }
+
+    button {
+      margin-top: 10px;
+      background: #1a1a1a;
+      color: #aaa;
+      border: 1px solid #333;
+      padding: 10px 36px;
+      font-family: inherit;
+      font-size: 0.78rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s, color 0.15s;
+    }
+    button:hover:not(:disabled) { background: #252525; color: #ddd; }
+    button:active:not(:disabled) { background: #2e2e2e; }
+    button:disabled { opacity: 0.25; cursor: not-allowed; }
+
+    /* ── answers section ── */
+    .answers-section {
+      margin-top: 56px;
+      width: 100%;
+      max-width: 480px;
+      border-top: 1px solid #1f1f1f;
+      padding-top: 24px;
+      display: none;
+    }
+
+    .answers-section h3 {
+      font-size: 0.64rem;
+      letter-spacing: 3px;
+      color: #3a3a3a;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    .answer-item {
+      background: #0d0d0d;
+      border-left: 2px solid #222;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+
+    .answer-item.clickable {
+      cursor: pointer;
+      border-left-color: #2a2a3a;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .answer-item.clickable:hover {
+      border-left-color: #445;
+      background: #101018;
+    }
+    .answer-item.clickable::after {
+      content: 'VIEW SCENARIO ›';
+      display: block;
+      font-size: 0.58rem;
+      letter-spacing: 2px;
+      color: #334;
+      margin-top: 8px;
+      text-transform: uppercase;
+    }
+    .answer-item.clickable:hover::after { color: #667; }
+
+    .answer-ts   { font-size: 0.65rem; color: #3a3a3a; margin-bottom: 4px; }
+    .answer-vid  { font-size: 0.6rem; color: #2a4a2a; margin-bottom: 3px; font-family: monospace; }
+    .answer-text { font-size: 0.84rem; color: #888; white-space: pre-wrap; word-break: break-word; }
+
+    /* ── scenario modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+
+    .modal-box {
+      background: #0a0a0a;
+      border: 1px solid #222;
+      max-width: 460px; width: 90%;
+      padding: 36px 32px 28px;
+      position: relative;
+    }
+    .modal-label { font-size: 0.6rem; letter-spacing: 5px; color: #3a3a4a; text-transform: uppercase; margin-bottom: 6px; }
+    .modal-ts    { font-size: 0.62rem; color: #2e2e3e; margin-bottom: 20px; }
+    .modal-divider { border: none; border-top: 1px solid #1a1a1a; margin-bottom: 20px; }
+    .modal-text  { font-size: 0.95rem; color: #aaa; white-space: pre-wrap; word-break: break-word; line-height: 1.65; }
+    .modal-close {
+      position: absolute; top: 14px; right: 18px;
+      background: none; border: none; color: #333;
+      font-size: 1rem; cursor: pointer; padding: 4px 8px; letter-spacing: 0;
+    }
+    .modal-close:hover { color: #777; }
+
+    /* ── credit ── */
+    .credit {
+      font-size: 0.62rem;
+      letter-spacing: 2px;
+      color: #333;
+      margin-bottom: 28px;
+      text-transform: lowercase;
+    }
+
+    /* ── admin badge ── */
+    .admin-badge {
+      display: none;
+      font-size: 0.58rem; letter-spacing: 3px;
+      color: #2a2a3a; border: 1px solid #1e1e2e;
+      padding: 3px 10px; margin-bottom: 8px; text-transform: uppercase;
+    }
+
+    /* ── visitor counter (admin only) ── */
+    .visitor-counter {
+      display: none;
+      font-size: 0.58rem;
+      letter-spacing: 2px;
+      color: #2a2a3a;
+      margin-bottom: 22px;
+      text-transform: uppercase;
+    }
+    .visitor-counter span {
+      color: #3a3a5a;
+    }
+
+    /* ── canvas animations ── */
+    @keyframes fx-shake {
+      0%,100% { transform: translate(0,0) rotate(0deg); }
+      10%  { transform: translate(-8px,-4px) rotate(-0.6deg); }
+      20%  { transform: translate(8px, 4px) rotate( 0.6deg); }
+      30%  { transform: translate(-6px, 6px) rotate(-0.4deg); }
+      40%  { transform: translate(6px,-6px) rotate( 0.4deg); }
+      50%  { transform: translate(-10px,2px) rotate(-0.5deg); }
+      60%  { transform: translate(10px,-2px) rotate( 0.5deg); }
+      70%  { transform: translate(-4px, 8px) rotate(-0.3deg); }
+      80%  { transform: translate(4px,-8px) rotate( 0.3deg); }
+      90%  { transform: translate(-2px, 4px) rotate(-0.1deg); }
+    }
+    @keyframes fx-tremor {
+      0%,100% { transform: translate(0,0); }
+      25%  { transform: translate(-2px,-1px); }
+      50%  { transform: translate(2px, 1px); }
+      75%  { transform: translate(-1px, 2px); }
+    }
+    @keyframes fx-spin {
+      0%   { transform: rotate(0deg)   scale(1); }
+      40%  { transform: rotate(200deg) scale(0.82); }
+      70%  { transform: rotate(340deg) scale(1.05); }
+      100% { transform: rotate(360deg) scale(1); }
+    }
+    @keyframes fx-zoom {
+      0%   { transform: scale(1); }
+      30%  { transform: scale(1.18); }
+      65%  { transform: scale(0.93); }
+      85%  { transform: scale(1.04); }
+      100% { transform: scale(1); }
+    }
+    @keyframes fx-bounce {
+      0%   { transform: scaleX(1)    scaleY(1); }
+      20%  { transform: scaleX(1.12) scaleY(0.82); }
+      45%  { transform: scaleX(0.94) scaleY(1.12); }
+      65%  { transform: scaleX(1.05) scaleY(0.95); }
+      80%  { transform: scaleX(0.98) scaleY(1.03); }
+      100% { transform: scaleX(1)    scaleY(1); }
+    }
+    @keyframes fx-flash {
+      0%,100% { filter: brightness(1); }
+      15%     { filter: brightness(10) invert(1); }
+      30%     { filter: brightness(1); }
+      50%     { filter: brightness(7) invert(1); }
+      65%     { filter: brightness(1); }
+    }
+    canvas.shaking  { animation: fx-shake  0.75s ease-out; }
+    canvas.tremor   { animation: fx-tremor 0.5s  ease-out; }
+    canvas.spinning { animation: fx-spin   0.85s ease-in-out; }
+    canvas.zooming  { animation: fx-zoom   0.65s ease-out; }
+    canvas.bouncing { animation: fx-bounce 0.7s  ease-out; }
+    canvas.flashing { animation: fx-flash  0.55s ease-out; }
+
+    /* ── maze wrapper (positions arrow) ── */
+    .maze-wrapper {
+      position: relative;
+      width: 480px;
+      max-width: 100%;
+    }
+
+    /* ── achievements arrow button ── */
+    #achievementsArrow {
+      position: absolute;
+      right: -38px;
+      top: calc(50% - 18px);
+      width: 28px;
+      height: 36px;
+      background: #0d0d0d;
+      border: 1px solid #2a2a2a;
+      color: #444;
+      font-size: 0.65rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      letter-spacing: 0;
+      transition: color 0.15s, border-color 0.15s;
+      font-family: inherit;
+    }
+    #achievementsArrow:hover { color: #aaa; border-color: #555; }
+
+    /* ── achievement toast (slide in from right) ── */
+    .ach-toast {
+      position: fixed;
+      right: -320px;
+      top: 70px;
+      width: 270px;
+      background: #0a0a0a;
+      border: 1px solid #2a2a2a;
+      border-left: 3px solid #9a7a10;
+      padding: 12px 16px;
+      z-index: 500;
+      transition: right 0.4s cubic-bezier(0.4,0,0.2,1);
+      font-family: 'Courier New', monospace;
+    }
+    .ach-toast.show { right: 14px; }
+    .ach-toast-label {
+      font-size: 0.55rem;
+      letter-spacing: 3px;
+      color: #7a5a00;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .ach-toast-icon { font-size: 1.2rem; margin-bottom: 4px; display: block; }
+    .ach-toast-title {
+      font-size: 0.74rem;
+      color: #bba;
+      letter-spacing: 1px;
+      line-height: 1.4;
+    }
+
+    /* ── achievements full-screen panel ── */
+    .achievements-screen {
+      position: fixed;
+      inset: 0;
+      background: #0d0d0d;
+      z-index: 400;
+      transform: translateX(100%);
+      transition: transform 0.35s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 50px 20px 80px;
+      font-family: 'Courier New', monospace;
+    }
+    .achievements-screen.open { transform: translateX(0); }
+
+    .ach-screen-back {
+      align-self: flex-start;
+      background: none;
+      border: none;
+      color: #444;
+      font-family: inherit;
+      font-size: 0.7rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      margin-bottom: 36px;
+      text-transform: uppercase;
+      padding: 0;
+    }
+    .ach-screen-back:hover { color: #aaa; }
+
+    .ach-screen-title {
+      font-size: 1.4rem;
+      letter-spacing: 6px;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .ach-screen-subtitle {
+      font-size: 0.65rem;
+      color: #444;
+      letter-spacing: 3px;
+      margin-bottom: 40px;
+    }
+
+    .ach-list {
+      width: 100%;
+      max-width: 460px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .ach-item {
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-left: 3px solid #9a7a10;
+      padding: 14px 18px;
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+    }
+    .ach-item-icon { font-size: 1.5rem; flex-shrink: 0; }
+    .ach-item-title {
+      font-size: 0.8rem;
+      color: #bba;
+      letter-spacing: 1px;
+      line-height: 1.5;
+    }
+
+    .ach-empty {
+      font-size: 0.72rem;
+      color: #333;
+      letter-spacing: 2px;
+      margin-top: 20px;
+    }
+  </style>
+  <!-- Supabase JS client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+  <h1>THE IMPOSSIBLE MAZE</h1>
+  <p class="subtitle">find the exit &mdash; if one exists</p>
+  <div class="admin-badge" id="adminBadge">ADMIN MODE</div>
+  <div class="visitor-counter" id="visitorCounter">
+    visitors: <span id="visitorCount">—</span>
+  </div>
+  <p class="credit">designed and developed by murilo michelin</p>
+
+  <div class="maze-wrapper">
+    <canvas id="maze" width="480" height="480"></canvas>
+    <div class="reaction-box" id="reactionBox">
+      <span class="tag">[ maze ]</span><span id="reactionText"></span>
+    </div>
+    <button id="achievementsArrow" title="Achievements" onclick="openAchievementsScreen()">&#9658;</button>
+  </div>
+
+  <div class="gap"></div>
+
+  <!-- achievements full-screen panel -->
+  <div class="achievements-screen" id="achievementsScreen">
+    <button class="ach-screen-back" onclick="closeAchievementsScreen()">&#8592; back</button>
+    <div class="ach-screen-title">ACHIEVEMENTS</div>
+    <div class="ach-screen-subtitle" id="achScreenSubtitle"></div>
+    <div class="ach-list" id="achList"></div>
+  </div>
+
+  <!-- achievement toast -->
+  <div class="ach-toast" id="achToast">
+    <div class="ach-toast-label">Achievement Unlocked</div>
+    <span class="ach-toast-icon" id="achToastIcon"></span>
+    <div class="ach-toast-title" id="achToastTitle"></div>
+  </div>
+
+  <div class="input-section">
+    <h2>How do you think you can get past it<br>but with only 10 tries?</h2>
+    <textarea id="idea" placeholder="share your idea..."></textarea>
+    <div class="tries-display" id="triesDisplay"></div>
+    <br>
+    <button id="submitBtn" onclick="submitIdea()">Submit</button>
+  </div>
+
+  <div class="answers-section" id="answersSection">
+    <h3 id="answersHeading"></h3>
+    <div id="answersList"></div>
+  </div>
+
+  <!-- scenario modal (admin only) -->
+  <div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+    <div class="modal-box">
+      <button class="modal-close" onclick="closeScenario()">&#x2715;</button>
+      <div class="modal-label">Scenario</div>
+      <div class="modal-ts" id="modalTs"></div>
+      <hr class="modal-divider">
+      <div class="modal-text" id="modalText"></div>
+    </div>
+  </div>
+
+  <script>
+    // ─────────────────────────────────────────────────────────────────
+    //  ADMIN DETECTION
+    // ─────────────────────────────────────────────────────────────────
+    const IS_ADMIN   = localStorage.getItem('maze_is_admin')   === '1';
+    const IS_COADMIN = !IS_ADMIN && localStorage.getItem('maze_is_coadmin') === '1';
+    const IS_ARYAN   = !IS_ADMIN && !IS_COADMIN && localStorage.getItem('maze_is_aryan') === '1';
+    const MAX_TRIES  = IS_ADMIN ? 999999999 : IS_ARYAN ? 999999999 : IS_COADMIN ? 300 : 10;
+    const TRIES_KEY = 'maze_tries_left';
+    const IDEAS_KEY = 'maze_ideas';
+
+    // ─────────────────────────────────────────────────────────────────
+    //  SUPABASE CONFIG  — fill in your Project URL and anon key
+    // ─────────────────────────────────────────────────────────────────
+    const SUPABASE_URL      = 'https://vwsxpgnuxzfipqoouajs.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_2z3K0sg2e9vf7pkSD4DOnQ_3cjgV6Z-';
+    const USE_DB = SUPABASE_URL !== 'YOUR_SUPABASE_URL';
+
+    const _sb = USE_DB
+      ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+      : null;
+
+    function getVisitorId() {
+      let id = localStorage.getItem('maze_visitor_id');
+      if (!id) {
+        id = 'v_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+        localStorage.setItem('maze_visitor_id', id);
+      }
+      return id;
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  MAZE GRID  (21 × 21)
+    //  Column 10 is always 1 — unbroken hidden vertical barrier.
+    // ─────────────────────────────────────────────────────────────────
+    const G = [
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+      [1,0,0,0,1,0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,1],
+      [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1],
+      [1,0,1,0,0,0,1,0,0,0,1,0,0,0,0,0,1,0,0,0,1],
+      [1,0,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1,0,1,1,1],
+      [1,0,0,0,1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1],
+      [1,1,1,0,1,0,1,1,1,0,1,0,1,1,1,1,1,0,1,0,1],
+      [1,0,0,0,1,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,1],
+      [1,0,1,1,1,1,1,0,1,0,1,0,1,0,1,0,1,1,1,0,1],
+      [1,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0,1,0,1],
+      [1,0,1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1],
+      [1,0,0,0,1,0,0,0,1,0,1,0,0,0,1,0,0,0,0,0,1],
+      [1,1,1,0,1,1,1,0,1,0,1,0,1,1,1,1,1,1,1,0,1],
+      [1,0,0,0,0,0,1,0,0,0,1,0,1,0,0,0,0,0,1,0,1],
+      [1,0,1,1,1,0,1,1,1,0,1,0,1,0,1,1,1,0,1,0,1],
+      [1,0,1,0,1,0,0,0,1,0,1,0,0,0,1,0,1,0,1,0,1],
+      [1,0,1,0,1,1,1,0,1,0,1,0,1,0,1,0,1,0,1,0,1],
+      [1,0,0,0,0,0,0,0,1,0,1,0,1,0,0,0,1,0,0,0,1],
+      [1,1,1,1,1,0,1,0,1,0,1,0,1,1,1,0,1,1,1,0,1],
+      [1,0,0,0,1,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1],
+      [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+    ];
+
+    const ROWS   = G.length;
+    const COLS   = G[0].length;
+    const canvas = document.getElementById('maze');
+    const ctx    = canvas.getContext('2d');
+    const CW     = canvas.width  / COLS;
+    const CH     = canvas.height / ROWS;
+
+    // ─────────────────────────────────────────────────────────────────
+    //  DRAWING
+    // ─────────────────────────────────────────────────────────────────
+    function renderWalls(wallColor = '#000000') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = wallColor;
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++)
+          if (G[r][c] === 1) ctx.fillRect(c * CW, r * CH, CW, CH);
+      ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#1a7a3a';
+      ctx.fillText('S', 1  * CW + CW / 2, 1  * CH + CH / 2);
+      ctx.fillStyle = '#9a1a2a';
+      ctx.fillText('E', 19 * CW + CW / 2, 19 * CH + CH / 2);
+    }
+
+    function drawMaze() { renderWalls(); }
+    drawMaze();
+
+    // ─────────────────────────────────────────────────────────────────
+    //  MAZE ANIMATIONS
+    // ─────────────────────────────────────────────────────────────────
+    let animRunning = false;
+
+    function cssAnim(cls, duration) {
+      canvas.classList.remove(cls);
+      void canvas.offsetWidth; // force reflow to restart animation
+      canvas.classList.add(cls);
+      setTimeout(() => canvas.classList.remove(cls), duration);
+    }
+
+    // Violent shake — physical / destructive answers
+    function playShake()  { cssAnim('shaking', 800); }
+
+    // Subtle tremor — default / unrecognised answers
+    function playTremor() { cssAnim('tremor', 550); }
+
+    // Digital glitch — tech / hack answers
+    function playGlitch(duration = 1100) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        if (now - start > duration) { animRunning = false; renderWalls(); return; }
+        renderWalls();
+        const strips = Math.floor(Math.random() * 7) + 2;
+        for (let i = 0; i < strips; i++) {
+          const sy = Math.random() * canvas.height;
+          const sh = Math.random() * 7 + 1;
+          const shift = (Math.random() - 0.5) * 50;
+          const slice = ctx.getImageData(0, sy, canvas.width, sh);
+          ctx.putImageData(slice, shift, sy);
+          ctx.fillStyle = `rgba(${Math.floor(Math.random()*180)},0,${Math.floor(Math.random()*180)},0.55)`;
+          ctx.fillRect(0, sy, canvas.width, sh);
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Wave ripple — water / jump / fly answers
+    function playRipple(duration = 1300) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const amp = Math.sin((elapsed / duration) * Math.PI) * 13;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000000';
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++)
+            if (G[r][c] === 1)
+              ctx.fillRect(c * CW + Math.sin(r * 0.9 + elapsed * 0.01) * amp, r * CH, CW, CH);
+        ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1a7a3a';
+        ctx.fillText('S', 1*CW+CW/2, 1*CH+CH/2);
+        ctx.fillStyle = '#9a1a2a';
+        ctx.fillText('E', 19*CW+CW/2, 19*CH+CH/2);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Fade out and in — invisibility / phase-through answers
+    function playFade(duration = 1100) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; ctx.globalAlpha = 1; renderWalls(); return; }
+        const t = elapsed / duration;
+        const alpha = t < 0.5 ? 1 - (t / 0.5) * 0.88 : 0.12 + ((t - 0.5) / 0.5) * 0.88;
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#000000';
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++)
+            if (G[r][c] === 1) ctx.fillRect(c * CW, r * CH, CW, CH);
+        ctx.globalAlpha = 1;
+        ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1a7a3a';
+        ctx.fillText('S', 1*CW+CW/2, 1*CH+CH/2);
+        ctx.fillStyle = '#9a1a2a';
+        ctx.fillText('E', 19*CW+CW/2, 19*CH+CH/2);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Red pulse — fire / explosion / anger answers
+    function playPulse(duration = 1000) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const t   = elapsed / duration;
+        const red = Math.floor(Math.sin(t * Math.PI) * 200);
+        renderWalls(`rgb(${red},0,0)`);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // CSS one-shots
+    function playSpin()   { cssAnim('spinning', 900); }
+    function playZoom()   { cssAnim('zooming',  700); }
+    function playBounce() { cssAnim('bouncing', 750); }
+    function playFlash()  { cssAnim('flashing', 600); }
+
+    // Color inversion flicker — reverse / opposite answers
+    function playInvert(duration = 950) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const phase = Math.floor((elapsed / duration) * 7) % 2;
+        if (phase === 0) {
+          ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = '#fff';
+          for (let r = 0; r < ROWS; r++)
+            for (let c = 0; c < COLS; c++)
+              if (G[r][c] === 1) ctx.fillRect(c * CW, r * CH, CW, CH);
+          ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#5dff90'; ctx.fillText('S', 1*CW+CW/2,  1*CH+CH/2);
+          ctx.fillStyle = '#ff5d7a'; ctx.fillText('E', 19*CW+CW/2, 19*CH+CH/2);
+        } else { renderWalls(); }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Random cell corruption — chaos / random answers
+    function playCorrupt(duration = 1100) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const t = elapsed / duration;
+        const chaos = Math.sin(t * Math.PI) * 0.18;
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000';
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++) {
+            const flipped = Math.random() < chaos ? G[r][c] === 0 : G[r][c] === 1;
+            if (flipped) ctx.fillRect(c * CW, r * CH, CW, CH);
+          }
+        ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1a7a3a'; ctx.fillText('S', 1*CW+CW/2,  1*CH+CH/2);
+        ctx.fillStyle = '#9a1a2a'; ctx.fillText('E', 19*CW+CW/2, 19*CH+CH/2);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // White crack lines — impact / weapon answers
+    function playCrack(duration = 1300) {
+      if (animRunning) return;
+      animRunning = true;
+      const cracks = Array.from({ length: 9 }, () => {
+        let x = Math.random() * canvas.width, y = Math.random() * canvas.height;
+        const pts = [{ x, y }];
+        for (let i = 0; i < 14; i++) {
+          x += (Math.random() - 0.5) * 44; y += Math.random() * 22 + 4;
+          pts.push({ x, y });
+        }
+        return pts;
+      });
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const t = elapsed / duration;
+        renderWalls();
+        const alpha = t < 0.55 ? t / 0.55 : 1 - (t - 0.55) / 0.45;
+        const visible = Math.min(1, t / 0.35);
+        ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.9})`;
+        ctx.lineWidth = 1.5;
+        cracks.forEach(pts => {
+          const end = Math.floor(pts.length * visible);
+          ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+          for (let i = 1; i < end; i++) ctx.lineTo(pts[i].x, pts[i].y);
+          ctx.stroke();
+        });
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Matrix rain — simulation / code / digital answers
+    function playRain(duration = 1600) {
+      if (animRunning) return;
+      animRunning = true;
+      const drops = Array.from({ length: 22 }, () => ({
+        x: Math.random() * canvas.width,
+        y: -Math.random() * canvas.height,
+        speed: Math.random() * 4 + 3,
+        len: Math.random() * 70 + 25,
+        char: Math.random() > 0.5,
+      }));
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        renderWalls();
+        drops.forEach(d => {
+          d.y += d.speed * 1.6;
+          ctx.strokeStyle = 'rgba(0,210,60,0.75)';
+          ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.moveTo(d.x, d.y); ctx.lineTo(d.x, d.y - d.len); ctx.stroke();
+          if (d.y > canvas.height + d.len) { d.y = -d.len; d.x = Math.random() * canvas.width; }
+        });
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Dripping melt — lava / ice-melt answers
+    function playMelt(duration = 1400) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const t    = elapsed / duration;
+        const drip = Math.sin(t * Math.PI) * 18;
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#000';
+        for (let r = 0; r < ROWS; r++)
+          for (let c = 0; c < COLS; c++)
+            if (G[r][c] === 1) {
+              const dy = drip * Math.sin(c * 0.65 + elapsed * 0.006);
+              ctx.fillRect(c * CW, r * CH + dy, CW, CH + Math.abs(dy) * 0.6);
+            }
+        ctx.font = `bold ${Math.floor(CW * 0.65)}px Courier New`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#1a7a3a'; ctx.fillText('S', 1*CW+CW/2,  1*CH+CH/2);
+        ctx.fillStyle = '#9a1a2a'; ctx.fillText('E', 19*CW+CW/2, 19*CH+CH/2);
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // TV static noise — electricity / EMP answers
+    function playStatic(duration = 950) {
+      if (animRunning) return;
+      animRunning = true;
+      const start = performance.now();
+      function frame(now) {
+        const elapsed = now - start;
+        if (elapsed > duration) { animRunning = false; renderWalls(); return; }
+        const t = elapsed / duration;
+        const intensity = Math.sin(t * Math.PI) * 0.65;
+        renderWalls();
+        const step = 3;
+        for (let y = 0; y < canvas.height; y += step)
+          for (let x = 0; x < canvas.width; x += step)
+            if (Math.random() < intensity) {
+              const v = Math.random() > 0.5 ? 255 : 0;
+              ctx.fillStyle = `rgba(${v},${v},${v},${0.5 + Math.random() * 0.5})`;
+              ctx.fillRect(x, y, step, step);
+            }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // Fireworks — Murilo God special
+    function playFireworks(duration = 5500, mainText = 'You defeated me', subText = 'The Murilo God is pleased.') {
+      if (animRunning) return;
+      animRunning = true;
+
+      const particles = [];
+      const COLORS = [
+        '#ff4466','#ff9933','#ffee00','#44ff88',
+        '#33ccff','#cc44ff','#ff44cc','#ffffff',
+      ];
+
+      function spawnBurst(bx, by) {
+        const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+        const count = Math.floor(Math.random() * 55) + 70;
+        for (let i = 0; i < count; i++) {
+          const angle = (i / count) * Math.PI * 2 + Math.random() * 0.3;
+          const speed = Math.random() * 5.5 + 1.5;
+          particles.push({
+            x: bx, y: by,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: Math.random() * 0.012 + 0.008,
+            color,
+            size: Math.random() * 3 + 1,
+            trail: [],
+          });
+        }
+        // Second colour ring
+        const color2 = COLORS[Math.floor(Math.random() * COLORS.length)];
+        for (let i = 0; i < 30; i++) {
+          const angle = (i / 30) * Math.PI * 2;
+          const speed = Math.random() * 2.5 + 0.5;
+          particles.push({
+            x: bx, y: by,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 0.8,
+            decay: Math.random() * 0.02 + 0.012,
+            color: color2,
+            size: Math.random() * 2 + 0.5,
+            trail: [],
+          });
+        }
+      }
+
+      const rockets = [];
+      function spawnRocket() {
+        rockets.push({
+          x: Math.random() * canvas.width * 0.8 + canvas.width * 0.1,
+          y: canvas.height,
+          vx: (Math.random() - 0.5) * 2.5,
+          vy: -(Math.random() * 9 + 11),
+          targetY: Math.random() * canvas.height * 0.45 + 20,
+          trail: [],
+          done: false,
+        });
+      }
+
+      const start     = performance.now();
+      let lastRocket  = -999;
+      let burstCount  = 0;
+
+      function frame(now) {
+        const elapsed = now - start;
+        const t       = elapsed / duration;
+
+        if (elapsed > duration) {
+          animRunning = false;
+          ctx.globalAlpha = 1;
+          ctx.shadowBlur = 0;
+          renderWalls();
+          return;
+        }
+
+        // Draw maze darkened
+        renderWalls();
+        ctx.fillStyle = 'rgba(0,0,0,0.62)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Launch rockets on a schedule
+        const interval = burstCount < 3 ? 400 : 500 + Math.random() * 300;
+        if (now - lastRocket > interval) {
+          spawnRocket();
+          lastRocket = now;
+        }
+
+        // Update rockets
+        for (let i = rockets.length - 1; i >= 0; i--) {
+          const rk = rockets[i];
+          rk.trail.push({ x: rk.x, y: rk.y });
+          if (rk.trail.length > 10) rk.trail.shift();
+          rk.x  += rk.vx;
+          rk.y  += rk.vy;
+          rk.vy += 0.28;
+
+          // Draw trail
+          rk.trail.forEach((pt, idx) => {
+            ctx.globalAlpha = (idx / rk.trail.length) * 0.55;
+            ctx.fillStyle = '#ffe066';
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, 2, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.globalAlpha = 1;
+
+          if (rk.y <= rk.targetY && !rk.done) {
+            rk.done = true;
+            spawnBurst(rk.x, rk.y);
+            burstCount++;
+            rockets.splice(i, 1);
+          }
+        }
+
+        // Update & draw particles
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.trail.push({ x: p.x, y: p.y });
+          if (p.trail.length > 5) p.trail.shift();
+          p.x  += p.vx;
+          p.y  += p.vy;
+          p.vy += 0.07;
+          p.vx *= 0.97;
+          p.life -= p.decay;
+          if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+          // Particle trail
+          p.trail.forEach((pt, idx) => {
+            ctx.globalAlpha = (idx / p.trail.length) * p.life * 0.35;
+            ctx.fillStyle = p.color;
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, p.size * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          ctx.globalAlpha = p.life;
+          ctx.fillStyle   = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+
+        // "You defeated me" text — fades in after first burst
+        if (burstCount >= 1) {
+          const textT = Math.min(1, (t - 0.12) / 0.25);
+          if (textT > 0) {
+            ctx.save();
+            ctx.globalAlpha  = textT;
+            ctx.textAlign    = 'center';
+            ctx.textBaseline = 'middle';
+
+            // Shadow / glow
+            ctx.shadowColor  = '#ffee44';
+            ctx.shadowBlur   = 28;
+            ctx.font         = `bold ${Math.floor(canvas.width * 0.072)}px Courier New`;
+            ctx.fillStyle    = '#ffffff';
+            ctx.fillText(mainText, canvas.width / 2, canvas.height / 2);
+
+            ctx.shadowBlur   = 0;
+            ctx.font         = `${Math.floor(canvas.width * 0.036)}px Courier New`;
+            ctx.fillStyle    = '#ffee88';
+            ctx.fillText(subText, canvas.width / 2, canvas.height / 2 + 36);
+            ctx.restore();
+          }
+        }
+
+        requestAnimationFrame(frame);
+      }
+
+      requestAnimationFrame(frame);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  REACTION ANALYSIS — keyword → effect + message
+    // ─────────────────────────────────────────────────────────────────
+    const REACTIONS = [
+      // ── THE MURILO GOD — must be first so it takes priority ──
+      {
+        keys: ['pray to murilo','pray to murlio'],
+        effect: 'fireworks',
+        msg: 'The Murilo God grants you passage.',
+        achievement: 'murilo',
+      },
+      // ── THE ARYAN GOD ──
+      {
+        keys: ['pray to aryan'],
+        effect: 'fireworks_aryan',
+        msg: 'The Aryan gods are happy with your work.',
+        achievement: 'aryan',
+      },
+      // ── physical force ──
+      {
+        keys: ['smash','break','destroy','punch','kick','hit','bash','force','knock','ram','crash','demolish','rip','tear','crack','shatter','hammer','axe','sledge','fist','stomp','headbutt','throw','swing','beat','pound','crush','flip','push','pull'],
+        effect: 'shake',
+        msg: 'the maze shudders... every wall holds firm.',
+        achievement: 'brute',
+      },
+      // ── weapons ──
+      {
+        keys: ['gun','shoot','bullet','sniper','rifle','sword','knife','stab','cut','slice','arrow','shoot','cannon','grenade','shotgun','pistol','blade','chainsaw','spear'],
+        effect: 'crack',
+        msg: 'the walls crack slightly... then seal themselves.',
+        achievement: 'weapons',
+      },
+      // ── gravity / falling ──
+      {
+        keys: ['gravity','fall','drop','collapse','topple','tip over','knock over'],
+        effect: 'shake',
+        msg: 'the maze does not fall. it has always stood.'
+      },
+      // ── tech / hacking ──
+      {
+        keys: ['hack','code','script','program','edit','exploit','inject','debug','console','devtools','inspect','javascript','html','css','cheat code','source','ctrl','algorithm','ai','bot','auto','macro','glitch out','cheat engine','memory','byte','binary','terminal'],
+        effect: 'glitch',
+        msg: 'the maze flickers... then snaps back into place.',
+        achievement: 'hacker',
+      },
+      // ── copy / mirror ──
+      {
+        keys: ['mirror','copy','duplicate','reflect','clone','screenshot','scan','photograph','print','map it','blueprint','recreate','redraw'],
+        effect: 'invert',
+        msg: 'the maze blinks. its reflection looks identical.'
+      },
+      // ── simulation / reality ──
+      {
+        keys: ['simulation','matrix','virtual','not real','dream','wake up','vr','augmented','hologram','fake','illusion','unreal','just a game'],
+        effect: 'rain',
+        msg: 'the maze questions whether you are real, not the other way around.',
+        achievement: 'simulation',
+      },
+      // ── time ──
+      {
+        keys: ['time travel','rewind','go back','reverse time','slow time','freeze time','stop time','pause','time stop','time freeze','timestamp','revert','undo','ctrl+z'],
+        effect: 'invert',
+        msg: 'time moves through the maze. the maze does not move through time.',
+        achievement: 'time',
+      },
+      // ── AI / ask a computer ──
+      {
+        keys: ['ask ai','ask chatgpt','ask claude','use ai','chatgpt','gpt','llm','ask google','look it up','google it','search'],
+        effect: 'rain',
+        msg: 'the maze predates every model trained on it.'
+      },
+      // ── water / liquid ──
+      {
+        keys: ['water','flood','swim','flow','wave','tsunami','melt','dissolve','liquid','pour','drown','rain','river','ocean','sea','lake','steam','puddle'],
+        effect: 'ripple',
+        msg: 'the paths waver... but the exit stays sealed.',
+        achievement: 'water',
+      },
+      // ── flying / jumping ──
+      {
+        keys: ['fly','jump','above','over','leap','wings','hover','float','climb','ceiling','roof','top','glide','soar','rocket pack','jetpack','balloon','parachute','trampoline','spring'],
+        effect: 'ripple',
+        msg: 'the maze extends infinitely upward.',
+        achievement: 'flight',
+      },
+      // ── sound / music ──
+      {
+        keys: ['scream','shout','yell','sing','music','sound','noise','frequency','vibrate','sonic','ultrasound','shockwave','loud','speaker','resonance'],
+        effect: 'ripple',
+        msg: 'the maze absorbs the sound. it echoes forever inside.',
+        achievement: 'sound',
+      },
+      // ── wind / air ──
+      {
+        keys: ['wind','blow','air','breath','fan','tornado','hurricane','gust','storm','cyclone'],
+        effect: 'ripple',
+        msg: 'the maze does not bend to the wind.'
+      },
+      // ── digging ──
+      {
+        keys: ['dig','tunnel','under','below','ground','beneath','mine','floor','underground','shovel','drill','bore','excavate','bunker'],
+        effect: 'shake',
+        msg: 'the maze extends infinitely downward.',
+        achievement: 'digger',
+      },
+      // ── invisibility / phasing ──
+      {
+        keys: ['invisible','disappear','ghost','phase','teleport','vanish','transparent','intangible','walk through','pass through','through the wall','no clip','noclip','spectate','spectator'],
+        effect: 'fade',
+        msg: 'the walls thin for a moment... but never fully vanish.',
+        achievement: 'ghost',
+      },
+      // ── shrinking ──
+      {
+        keys: ['shrink','small','tiny','ant','mouse','squeeze','miniature','nano','microscopic','atom'],
+        effect: 'fade',
+        msg: 'the gaps are just as narrow, no matter your size.'
+      },
+      // ── going around / outside ──
+      {
+        keys: ['around','outside','edge','bypass','avoid','circumvent','go around','go outside','leave','exit the room','step back','look away'],
+        effect: 'fade',
+        msg: 'there is no outside. the maze is everything.'
+      },
+      // ── darkness / light ──
+      {
+        keys: ['turn off the lights','lights out','dark','darkness','blind','close eyes','night vision','torch','flashlight','candle','glow'],
+        effect: 'fade',
+        msg: 'the maze exists whether you can see it or not.'
+      },
+      // ── poison / gas ──
+      {
+        keys: ['poison','gas','toxic','acid','chemical','dissolve','corrode','rust','decay','rot','biohazard'],
+        effect: 'fade',
+        msg: 'the walls are immune to everything you can imagine.'
+      },
+      // ── magic / prayer ──
+      {
+        keys: ['magic','spell','wizard','witch','wand','pray','god','wish','miracle','ritual','curse','enchant','summon','cast','chant','potion','prayer','faith','bless','divine'],
+        effect: 'pulse',
+        msg: 'the maze is unmoved by the supernatural.',
+        achievement: 'magic',
+      },
+      // ── fire / explosion ──
+      {
+        keys: ['fire','burn','laser','explode','bomb','torch','flame','ignite','nuke','blast','detonate','dynamite','tnt','rocket','napalm','flamethrower','incinerate','melt the walls'],
+        effect: 'pulse',
+        msg: 'the maze pulses with heat... still no way through.',
+        achievement: 'fire',
+      },
+      // ── electricity ──
+      {
+        keys: ['electric','electricity','zap','lightning','shock','voltage','current','emp','overload','fuse','short circuit','power','tesla','plasma'],
+        effect: 'static',
+        msg: 'the maze hums with static. then silence.',
+        achievement: 'electric',
+      },
+      // ── nuclear / radiation ──
+      {
+        keys: ['nuclear','radiation','radioactive','uranium','fission','fusion','atom bomb','chernobyl','fallout','meltdown'],
+        effect: 'pulse',
+        msg: 'the maze glows briefly. the walls remain.',
+        achievement: 'nuclear',
+      },
+      // ── give up ──
+      {
+        keys: ['give up','impossible','can\'t','cant','no way','hopeless','surrender','quit','there is no exit','no exit','unsolvable','i lose','you win','accept','nothing works','nothing will work'],
+        effect: 'pulse',
+        msg: 'at last, someone who understands.',
+        achievement: 'give_up',
+      },
+      // ── rage / anger ──
+      {
+        keys: ['rage','angry','furious','hate','hate this','this is stupid','dumb','unfair','cheat','rigged','broken','scam','trash','garbage','terrible','awful'],
+        effect: 'pulse',
+        msg: 'the maze has caused this reaction before.',
+        achievement: 'rage',
+      },
+      // ── teamwork ──
+      {
+        keys: ['ask','help','friend','team','together','cooperate','multiplayer','group','crowd','army','mob','everyone','we all'],
+        effect: 'tremor',
+        msg: 'the maze has always been a solitary challenge.'
+      },
+      // ── thinking / studying ──
+      {
+        keys: ['wait','patience','time','slow','careful','observe','study','analyze','map','think','logic','reason','plan','solve','figure','calculate','measure','count','trace','memorize'],
+        effect: 'tremor',
+        msg: 'the maze respects your patience. it changes nothing.'
+      },
+      // ── bribery ──
+      {
+        keys: ['pay','bribe','money','cash','coin','gold','reward','deal','trade','buy','purchase','negotiate'],
+        effect: 'tremor',
+        msg: 'the maze cannot be bought.'
+      },
+      // ── emotions ──
+      {
+        keys: ['cry','tears','weep','beg','please','mercy','emotion','love','heart','feel','sad','scared','afraid'],
+        effect: 'tremor',
+        msg: 'the maze has no heart to appeal to.'
+      },
+      // ── randomness / luck ──
+      {
+        keys: ['luck','random','chance','guess','try everything','brute force','trial and error','dice','coin flip','50/50','random walk'],
+        effect: 'tremor',
+        msg: 'the maze has no solution to stumble upon.'
+      },
+      // ── portals / dimensions ──
+      {
+        keys: ['portal','wormhole','dimension','another dimension','parallel','multiverse','void','rift','warp','gateway','space'],
+        effect: 'glitch',
+        msg: 'there is only one dimension in which the maze exists. this one.',
+        achievement: 'portal',
+      },
+      // ── eat / consume ──
+      {
+        keys: ['eat','bite','consume','chew','swallow','digest','absorb','devour','chomp'],
+        effect: 'shake',
+        msg: 'the maze is not food.'
+      },
+      // ── freeze / ice ──
+      {
+        keys: ['freeze','ice','cold','frost','frozen','liquid nitrogen','cryo','solidify','brittle'],
+        effect: 'fade',
+        msg: 'the walls grow cold... then warm again.',
+        achievement: 'freeze',
+      },
+      // ── laugh / joke ──
+      {
+        keys: ['joke','funny','laugh','lol','haha','lmao','lmfao','humor','comedic','absurd','ridiculous'],
+        effect: 'tremor',
+        msg: 'the maze does not have a sense of humour.'
+      },
+      // ── reverse / rotate / spin ──
+      {
+        keys: ['reverse','backward','flip','rotate','turn','spin','invert','upside down','opposite','mirror image','whirl','vortex','centrifuge'],
+        effect: 'spin',
+        msg: 'the maze spins... and arrives back exactly where it started.',
+        achievement: 'spin',
+      },
+      // ── robots / machines ──
+      {
+        keys: ['robot','machine','drone','mechanical','automate','send a robot','computer','device','gadget','tool','invention'],
+        effect: 'static',
+        msg: 'machines have tried. the maze does not care.',
+        achievement: 'robot',
+      },
+      // ── zoom / magnify ──
+      {
+        keys: ['zoom','zoom in','look closer','magnify','enlarge','microscope','telescope','lens','binoculars','inspect closely'],
+        effect: 'zoom',
+        msg: 'the maze fills your entire vision. the exit is still not there.'
+      },
+      // ── bounce / elastic ──
+      {
+        keys: ['bounce','rubber','elastic','spring','trampoline','rebound','ricochet','reflect off','ping pong','pinball'],
+        effect: 'bounce',
+        msg: 'the maze absorbs the impact. nothing bounces out.'
+      },
+      // ── luck / random ──
+      {
+        keys: ['luck','random','chance','guess','try everything','brute force','trial and error','dice','coin flip','50/50','random walk','randomly'],
+        effect: 'corrupt',
+        msg: 'the maze briefly considers randomness... and rejects it.'
+      },
+      // ── lava / molten / magma ──
+      {
+        keys: ['lava','magma','molten','volcanic','volcano','hot metal','thermite','incandescent'],
+        effect: 'melt',
+        msg: 'the walls sag slightly... then harden again.'
+      },
+      // ── freeze / ice ──
+      {
+        keys: ['freeze','ice','cold','frost','frozen','liquid nitrogen','cryo','solidify','brittle','glacier','arctic','absolute zero'],
+        effect: 'melt',
+        msg: 'the walls grow cold... then resume their usual indifference.'
+      },
+      // ── shrink the maze ──
+      {
+        keys: ['shrink the maze','make it smaller','resize','scale','compress the maze','collapse the maze','fold','crumple'],
+        effect: 'zoom',
+        msg: 'the maze is exactly as large as it needs to be.'
+      },
+      // ── flash / blind ──
+      {
+        keys: ['flash','strobe','blind them','flashbang','bright light','flare','supernova','stare at the sun'],
+        effect: 'flash',
+        msg: 'everything goes white. the maze is still there when vision returns.'
+      },
+    ];
+
+    const DEFAULT_MSGS = [
+      'the maze considers your idea... and remains unmoved.',
+      'interesting. the walls do not agree.',
+      'the maze has heard stranger things.',
+      'silence from the walls.',
+      'the maze files your suggestion under: no.',
+      'noted. the exit is still unreachable.',
+      'the maze acknowledges your effort. nothing changes.',
+      'the walls absorb your words.',
+      'the maze has been here longer than your idea.',
+      'creative. irrelevant.',
+      'the exit remains exactly where it has always been — unreachable.',
+      'the maze stares back in silence.',
+      'your idea dissolves into the corridors.',
+      'the maze is unmoved. as always.',
+    ];
+
+    function analyzeAnswer(text) {
+      const lower = text.toLowerCase();
+      for (const r of REACTIONS) {
+        if (r.keys.some(k => lower.includes(k))) {
+          return { effect: r.effect, msg: r.msg, achievement: r.achievement || null };
+        }
+      }
+      return {
+        effect: 'tremor',
+        msg: DEFAULT_MSGS[Math.floor(Math.random() * DEFAULT_MSGS.length)],
+        achievement: null,
+      };
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  SHOW REACTION TEXT
+    // ─────────────────────────────────────────────────────────────────
+    function showReaction(msg) {
+      const box  = document.getElementById('reactionBox');
+      const text = document.getElementById('reactionText');
+      box.classList.remove('visible');
+      text.textContent = '';
+      setTimeout(() => {
+        text.textContent = msg;
+        box.classList.add('visible');
+      }, 280);
+    }
+
+    function triggerReaction(answerText) {
+      const { effect, msg, achievement } = analyzeAnswer(answerText);
+      if (achievement) unlockAchievement(achievement);
+      switch (effect) {
+        case 'shake':   playShake();   break;
+        case 'glitch':  playGlitch();  break;
+        case 'ripple':  playRipple();  break;
+        case 'fade':    playFade();    break;
+        case 'pulse':   playPulse();   break;
+        case 'spin':    playSpin();    break;
+        case 'zoom':    playZoom();    break;
+        case 'bounce':  playBounce();  break;
+        case 'flash':   playFlash();   break;
+        case 'invert':  playInvert();  break;
+        case 'corrupt': playCorrupt(); break;
+        case 'crack':   playCrack();   break;
+        case 'rain':    playRain();    break;
+        case 'melt':    playMelt();    break;
+        case 'static':    playStatic();    break;
+        case 'fireworks':       playFireworks(); break;
+        case 'fireworks_aryan': playFireworks(5500, 'You defeated me', 'The Aryan gods are happy with your work.'); break;
+        default:                playTremor();    break;
+      }
+      showReaction(msg);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  ADMIN UI
+    // ─────────────────────────────────────────────────────────────────
+    if (IS_ADMIN) {
+      document.getElementById('adminBadge').style.display = 'block';
+      document.getElementById('answersHeading').textContent =
+        '[ All submitted ideas — admin view ]';
+    } else if (IS_ARYAN) {
+      document.getElementById('answersHeading').textContent =
+        '[ Your submitted ideas — aryan ]';
+    } else if (IS_COADMIN) {
+      document.getElementById('answersHeading').textContent =
+        '[ Your submitted ideas — co-admin ]';
+    } else {
+      document.getElementById('answersHeading').textContent =
+        '[ Your submitted ideas ]';
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  TRIES SYSTEM
+    // ─────────────────────────────────────────────────────────────────
+    function getTriesLeft() {
+      if (IS_ADMIN) return 999999999;
+      const v = localStorage.getItem(TRIES_KEY);
+      if (v === null) { localStorage.setItem(TRIES_KEY, MAX_TRIES); return MAX_TRIES; }
+      return parseInt(v, 10);
+    }
+
+    function spendTry() {
+      if (IS_ADMIN) return;
+      localStorage.setItem(TRIES_KEY, Math.max(0, getTriesLeft() - 1));
+    }
+
+    function updateUI() {
+      const left = getTriesLeft();
+      const disp = document.getElementById('triesDisplay');
+      const ta   = document.getElementById('idea');
+      const btn  = document.getElementById('submitBtn');
+
+      if (left <= 0) {
+        disp.textContent = 'no tries remaining';
+        disp.className   = 'tries-display out';
+        ta.disabled = true;
+        ta.placeholder = 'you have used all your tries.';
+        btn.disabled = true;
+      } else {
+        disp.textContent = IS_ADMIN
+          ? `tries remaining: ${left.toLocaleString()}`
+          : `tries remaining: ${left}`;
+        disp.className = 'tries-display' + (!IS_ADMIN && left === 1 ? ' warn' : '');
+        ta.disabled  = false;
+        btn.disabled = false;
+      }
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  IDEAS (Supabase when configured, localStorage fallback)
+    // ─────────────────────────────────────────────────────────────────
+
+    // localStorage helpers (fallback / first-submit check)
+    function _lsLoadIdeas() {
+      try { return JSON.parse(localStorage.getItem(IDEAS_KEY)) || []; }
+      catch { return []; }
+    }
+    function _lsSaveIdea(text) {
+      const ideas = _lsLoadIdeas();
+      ideas.push({ text, timestamp: new Date().toLocaleString() });
+      localStorage.setItem(IDEAS_KEY, JSON.stringify(ideas));
+    }
+
+    function escHtml(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function loadIdeas() {
+      if (!USE_DB) return _lsLoadIdeas();
+      try {
+        let q = _sb.from('maze_answers').select('*').order('created_at', { ascending: false });
+        if (!IS_ADMIN) q = q.eq('visitor_id', getVisitorId());
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data || []).map(r => ({
+          text:       r.answer_text,
+          timestamp:  new Date(r.created_at).toLocaleString(),
+          visitor_id: r.visitor_id,
+        }));
+      } catch (e) {
+        console.warn('Supabase loadIdeas failed, falling back to localStorage', e);
+        return _lsLoadIdeas();
+      }
+    }
+
+    async function saveIdea(text) {
+      if (!USE_DB) { _lsSaveIdea(text); return; }
+      try {
+        const { error } = await _sb.from('maze_answers').insert({
+          answer_text: text,
+          visitor_id:  getVisitorId(),
+        });
+        if (error) throw error;
+        // also persist locally so first-submit check works offline
+        _lsSaveIdea(text);
+      } catch (e) {
+        console.warn('Supabase saveIdea failed, falling back to localStorage', e);
+        _lsSaveIdea(text);
+      }
+    }
+
+    async function renderIdeas() {
+      const ideas   = await loadIdeas();
+      const section = document.getElementById('answersSection');
+      const list    = document.getElementById('answersList');
+
+      if (ideas.length === 0) { section.style.display = 'none'; return; }
+      section.style.display = 'block';
+      list.innerHTML = '';
+
+      ideas.forEach(item => {
+        const div = document.createElement('div');
+        div.className = IS_ADMIN ? 'answer-item clickable' : 'answer-item';
+        const vidLabel = IS_ADMIN && item.visitor_id
+          ? `<div class="answer-vid">${escHtml(item.visitor_id)}</div>` : '';
+        div.innerHTML =
+          `<div class="answer-ts">${item.timestamp}</div>` +
+          vidLabel +
+          `<div class="answer-text">${escHtml(item.text)}</div>`;
+        if (IS_ADMIN) div.addEventListener('click', () => openScenario(item));
+        list.appendChild(div);
+      });
+    }
+
+    async function submitIdea() {
+      const ta   = document.getElementById('idea');
+      const text = ta.value.trim();
+      if (!text || getTriesLeft() <= 0) return;
+
+      // ── Co-Admin rank unlock ──────────────────────────────────────
+      const lower = text.toLowerCase();
+      if (!IS_ADMIN && !IS_COADMIN &&
+          (lower === 'i want coadmin' || lower === 'i want co admin' || lower === 'i want co-admin')) {
+        localStorage.setItem('maze_is_coadmin', '1');
+        localStorage.setItem(TRIES_KEY, 300);
+        unlockAchievement('coadmin');
+        playFlash();
+        setTimeout(() => playZoom(), 320);
+        showReaction('rank: co-admin granted. the maze gives you 300 tries.');
+        ta.value = '';
+        setTimeout(() => location.reload(), 2600);
+        return;
+      }
+
+      // ── Aryan rank unlock ─────────────────────────────────────────
+      if (!IS_ADMIN && !IS_ARYAN && lower === 'i am the real aryan') {
+        localStorage.setItem('maze_is_aryan', '1');
+        localStorage.setItem(TRIES_KEY, 999999999);
+        unlockAchievement('aryan');
+        playFlash();
+        setTimeout(() => playZoom(), 320);
+        showReaction('rank: aryan granted. the maze bows before you.');
+        ta.value = '';
+        setTimeout(() => location.reload(), 2600);
+        return;
+      }
+
+      // first-ever submission achievement
+      if (_lsLoadIdeas().length === 0) unlockAchievement('first');
+
+      spendTry();
+      triggerReaction(text);
+      await saveIdea(text);
+
+      ta.value = '';
+      updateUI();
+      renderIdeas();
+    }
+
+    document.getElementById('idea').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitIdea();
+    });
+
+    // ─────────────────────────────────────────────────────────────────
+    //  SCENARIO MODAL (admin only)
+    // ─────────────────────────────────────────────────────────────────
+    function openScenario(item) {
+      document.getElementById('modalTs').textContent   = item.timestamp;
+      document.getElementById('modalText').textContent = item.text;
+      document.getElementById('modalOverlay').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeScenario() {
+      document.getElementById('modalOverlay').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    function closeModal(e) {
+      if (e.target === document.getElementById('modalOverlay')) closeScenario();
+    }
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeScenario();
+    });
+
+    // ─────────────────────────────────────────────────────────────────
+    //  ACHIEVEMENTS
+    // ─────────────────────────────────────────────────────────────────
+    const ACH_KEY = 'maze_achievements';
+
+    const ACH_DEFS = {
+      first:      { icon: '👋', title: 'First Contact'                               },
+      weapons:    { icon: '⚔️',  title: 'You dare try fight the maze of a million mazes' },
+      brute:      { icon: '💥', title: 'The Unstoppable Force Meets the Immovable Maze' },
+      digger:     { icon: '⛏️',  title: 'There Is No Basement'                        },
+      hacker:     { icon: '💻', title: 'Ghost in the Shell of Failure'               },
+      simulation: { icon: '🔴', title: 'Red Pill, Wrong Maze'                        },
+      time:       { icon: '⏳', title: 'The Chronological Failure'                   },
+      water:      { icon: '🌊', title: 'Baptism of Futility'                         },
+      flight:     { icon: '🪽', title: 'Wings That Lead Nowhere'                     },
+      ghost:      { icon: '👻', title: 'The Phantom Who Could Not Pass'              },
+      fire:       { icon: '🔥', title: 'Pyromaniac of the Labyrinth'                 },
+      electric:   { icon: '⚡', title: 'The Thunderstruck'                           },
+      nuclear:    { icon: '☢️',  title: 'Splitting Atoms for Nothing'                 },
+      magic:      { icon: '🔮', title: "Merlin's Last Resort"                        },
+      give_up:    { icon: '🏳️',  title: 'The Honest One'                              },
+      spin:       { icon: '🌀', title: 'The Maze Looks the Same Upside Down'        },
+      freeze:     { icon: '🧊', title: 'The Ice Age of Disappointment'               },
+      robot:      { icon: '🤖', title: 'Machines Have Tried Before You'             },
+      portal:     { icon: '🕳️',  title: 'Lost Between Dimensions'                    },
+      rage:       { icon: '😤', title: 'Anger Management: Maze Edition'             },
+      sound:      { icon: '🔊', title: 'The Maze Is Deaf'                           },
+      bounce:     { icon: '⭕', title: 'Rubber Meets Wall'                           },
+      murilo:     { icon: '✨', title: 'Chosen by the Murilo God'                   },
+      aryan:      { icon: '👑', title: 'Chosen by Aryan'                            },
+      coadmin:    { icon: '🎖️',  title: 'One of the Chosen Few'                      },
+    };
+
+    function loadAchievements() {
+      try { return JSON.parse(localStorage.getItem(ACH_KEY)) || []; }
+      catch { return []; }
+    }
+
+    function hasAchievement(id) { return loadAchievements().includes(id); }
+
+    function unlockAchievement(id) {
+      if (!id || !ACH_DEFS[id] || hasAchievement(id)) return;
+      const list = loadAchievements();
+      list.push(id);
+      localStorage.setItem(ACH_KEY, JSON.stringify(list));
+      showAchievementToast(id);
+    }
+
+    function showAchievementToast(id) {
+      const def   = ACH_DEFS[id];
+      const toast = document.getElementById('achToast');
+      document.getElementById('achToastIcon').textContent  = def.icon;
+      document.getElementById('achToastTitle').textContent = def.title;
+      toast.classList.add('show');
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
+    function openAchievementsScreen() {
+      const earned = loadAchievements();
+      const list   = document.getElementById('achList');
+      const sub    = document.getElementById('achScreenSubtitle');
+      sub.textContent = earned.length
+        ? `${earned.length} achievement${earned.length > 1 ? 's' : ''} earned`
+        : '';
+      list.innerHTML = '';
+      if (earned.length === 0) {
+        list.innerHTML = '<div class="ach-empty">no achievements yet — keep trying</div>';
+      } else {
+        earned.forEach(id => {
+          const def = ACH_DEFS[id];
+          if (!def) return;
+          const div = document.createElement('div');
+          div.className = 'ach-item';
+          div.innerHTML =
+            `<span class="ach-item-icon">${def.icon}</span>` +
+            `<span class="ach-item-title">${def.title}</span>`;
+          list.appendChild(div);
+        });
+      }
+      document.getElementById('achievementsScreen').classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeAchievementsScreen() {
+      document.getElementById('achievementsScreen').classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  INIT
+    // ─────────────────────────────────────────────────────────────────
+    updateUI();
+    renderIdeas();
+
+    // ── VISITOR COUNTER (admin only) ─────────────────────────────────
+    // Uses GoatCounter's built-in visit_count — no API token needed.
+    if (IS_ADMIN) {
+      document.getElementById('visitorCounter').style.display = 'block';
+      document.getElementById('visitorCount').textContent = '…';
+      const poll = setInterval(() => {
+        if (window.goatcounter && window.goatcounter.visit_count) {
+          clearInterval(poll);
+          document.getElementById('visitorCount').textContent = '';
+          window.goatcounter.visit_count({ append: 'visitorCount' });
+        }
+      }, 200);
+      setTimeout(() => {
+        clearInterval(poll);
+        if (!document.getElementById('visitorCount').textContent.trim())
+          document.getElementById('visitorCount').textContent = '—';
+      }, 8000);
+    }
+  </script>
+
+  <!-- GoatCounter: replace YOUR_GOATCOUNTER_CODE with your site code -->
+  <script data-goatcounter="https://impossiblemaze.goatcounter.com/count"
+          async src="//gc.zgo.at/count.js"></script>
+</body>
+</html>

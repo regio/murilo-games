@@ -1,0 +1,1618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chance of Death</title>
+    <style>
+        :root {
+            --bg: #0d0d14;
+            --card: #13131f;
+            --card2: #1a1a2e;
+            --accent: #e63946;
+            --accent2: #ff6b6b;
+            --text: #e0e0e0;
+            --muted: #7777aa;
+            --border: #2a2a3e;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #app {
+            width: 100%;
+            max-width: 580px;
+        }
+
+        .screen { animation: fadeUp 0.28s ease; }
+
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Title ── */
+        .title {
+            text-align: center;
+            margin-bottom: 36px;
+        }
+        .title h1 {
+            font-size: 2.8rem;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: -1px;
+            text-shadow: 0 0 50px rgba(230,57,70,0.45);
+        }
+        .title p {
+            color: var(--muted);
+            font-size: 0.95rem;
+            margin-top: 6px;
+        }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 22px;
+            margin-bottom: 14px;
+        }
+
+        .section-label {
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1.4px;
+            margin-bottom: 16px;
+        }
+
+        /* ── Scenario grid ── */
+        .scenario-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+
+        .scenario-btn {
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 22px 14px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.18s, transform 0.18s, background 0.18s;
+            color: var(--text);
+        }
+        .scenario-btn:hover {
+            border-color: var(--accent);
+            background: #1f1f35;
+            transform: translateY(-2px);
+        }
+        .scenario-btn .s-emoji { font-size: 2.4rem; display: block; margin-bottom: 8px; }
+        .scenario-btn .s-name { font-size: 0.9rem; font-weight: 600; }
+
+        /* ── Input ── */
+        input[type="number"] {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text);
+            font-size: 1.25rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="number"]:focus { border-color: var(--accent); }
+        input[type="number"].error  { border-color: var(--accent); }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 13px 20px;
+            border-radius: 9px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.18s;
+            border: none;
+            width: 100%;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+        }
+        .btn-primary:hover { background: #c42f3c; }
+
+        .btn-ghost {
+            background: var(--card2);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        .btn-ghost:hover { border-color: var(--accent); color: var(--accent2); }
+
+        .btn-disabled {
+            background: var(--card2);
+            color: var(--muted);
+            border: 1px solid var(--border);
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        /* ── Back ── */
+        .back-btn {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 0.88rem;
+            cursor: pointer;
+            padding: 6px 0;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: color 0.18s;
+        }
+        .back-btn:hover { color: var(--text); }
+
+        /* ── Stats display ── */
+        .stat-display {
+            text-align: center;
+            padding: 30px 20px 24px;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            margin-bottom: 14px;
+        }
+        .stat-label {
+            font-size: 0.78rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-bottom: 10px;
+        }
+        .stat-odds {
+            font-size: clamp(2rem, 8vw, 3.4rem);
+            font-weight: 900;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .stat-risk {
+            font-size: 0.9rem;
+            color: var(--muted);
+            margin-bottom: 18px;
+        }
+        .stat-risk strong { color: var(--accent2); }
+        .stat-context {
+            font-size: 0.88rem;
+            color: #b0b0cc;
+            background: var(--card2);
+            border-radius: 9px;
+            padding: 12px 14px;
+            line-height: 1.55;
+            text-align: left;
+        }
+
+        /* ── Filter tags ── */
+        .filter-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            margin-bottom: 14px;
+        }
+        .filter-tag {
+            background: rgba(230,57,70,0.14);
+            border: 1px solid rgba(230,57,70,0.28);
+            color: var(--accent2);
+            padding: 3px 11px;
+            border-radius: 20px;
+            font-size: 0.78rem;
+        }
+
+        /* ── Option list ── */
+        .opt-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 14px 18px;
+            margin-bottom: 8px;
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text);
+            font-size: 0.93rem;
+            transition: border-color 0.18s, background 0.18s, padding-left 0.18s;
+        }
+        .opt-btn:last-child { margin-bottom: 0; }
+        .opt-btn:hover {
+            border-color: var(--accent);
+            background: #1e1e30;
+            padding-left: 22px;
+        }
+        .opt-btn strong { display: block; margin-bottom: 3px; }
+        .opt-btn span { font-size: 0.81rem; color: var(--muted); }
+
+        /* ── Category list ── */
+        .cat-btn {
+            display: block;
+            width: 100%;
+            text-align: left;
+            padding: 16px 18px;
+            margin-bottom: 8px;
+            background: var(--card2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            color: var(--text);
+            transition: border-color 0.18s, background 0.18s, padding-left 0.18s;
+        }
+        .cat-btn:last-child { margin-bottom: 0; }
+        .cat-btn:hover {
+            border-color: var(--accent);
+            background: #1e1e30;
+            padding-left: 22px;
+        }
+        .cat-btn .cat-icon { font-size: 1.3rem; margin-right: 10px; }
+        .cat-btn .cat-name { font-weight: 700; font-size: 0.95rem; }
+        .cat-btn .cat-q { font-size: 0.82rem; color: var(--muted); margin-top: 3px; padding-left: 38px; }
+
+        .question-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 18px;
+        }
+
+        .disclaimer {
+            text-align: center;
+            color: var(--muted);
+            font-size: 0.76rem;
+            margin-top: 4px;
+        }
+
+        /* ── Page tab bar ── */
+        .page-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 28px;
+        }
+        .page-tab {
+            flex: 1;
+            padding: 11px 8px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: var(--card2);
+            color: var(--muted);
+            font-size: 0.82rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.18s;
+        }
+        .page-tab:hover {
+            border-color: var(--accent);
+            color: var(--text);
+        }
+        .page-tab.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+    </style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// DATA
+// ═══════════════════════════════════════════════════════
+
+const SCENARIOS = {
+    skiing: {
+        id: 'skiing',
+        name: 'Skiing / Snowboarding',
+        emoji: '⛷️',
+        unit: 'day on the mountain',
+        yearRange: [1970, 2035],
+        getBaseOdds(year) {
+            // ~1 in 250,000 per ski day in modern era; improving slightly with helmets & safety gear
+            const table = {
+                1970: 80000,  1975: 95000,  1980: 115000, 1985: 140000,
+                1990: 165000, 1995: 185000, 2000: 210000, 2005: 230000,
+                2010: 245000, 2015: 255000, 2018: 258000, 2020: 260000,
+                2022: 262000, 2024: 265000, 2026: 268000, 2030: 275000,
+            };
+            return interpolate(table, year, 260000);
+        },
+        context(year, odds) {
+            return `In ${year}, the chance of dying on a single ski or snowboard day is roughly 1 in ${Math.round(odds).toLocaleString()}. About 35–45 people die on US ski slopes each year out of ~9 million participants — most from collisions with trees or other skiers.`;
+        },
+        deepenCategories: [
+            {
+                id: 'ability', name: 'Skill Level', icon: '🎿',
+                question: 'What is your skill level?',
+                options: [
+                    { label: 'Beginner (first few times)',      mult: 1.30, note: 'Slow speeds but poor edge control and stopping ability' },
+                    { label: 'Intermediate (green/blue runs)',  mult: 0.90, note: 'Comfortable on groomed pistes; predictable terrain' },
+                    { label: 'Advanced (black runs)',           mult: 1.10, note: 'Higher speeds increase collision and fall severity' },
+                    { label: 'Expert / off-piste rider',        mult: 1.80, note: 'Backcountry, cliffs, trees — lowest margin for error' },
+                    { label: 'Ski racer / park / freestyle',    mult: 2.10, note: 'Extreme speeds and aerial manoeuvres; highest risk group' },
+                ]
+            },
+            {
+                id: 'terrain', name: 'Terrain Type', icon: '🏔️',
+                question: 'What terrain are you skiing?',
+                options: [
+                    { label: 'Beginner / green runs',          mult: 0.55, note: 'Gentle gradient, wide open, well-patrolled' },
+                    { label: 'Intermediate / blue runs',       mult: 0.85, note: 'Some steepness, groomed, moderate traffic' },
+                    { label: 'Advanced / black diamond',       mult: 1.30, note: 'Steep, possible moguls, higher speeds' },
+                    { label: 'Double black diamond',           mult: 1.90, note: 'Very steep, unforgiving terrain' },
+                    { label: 'Off-piste / backcountry',        mult: 2.80, note: 'Avalanche risk, tree wells, no patrol coverage' },
+                    { label: 'Terrain park (jumps/rails)',     mult: 2.20, note: 'Head and spinal injuries peak here; landing zone risk' },
+                ]
+            },
+            {
+                id: 'conditions', name: 'Snow Conditions', icon: '🌨️',
+                question: 'What are the snow and visibility conditions?',
+                options: [
+                    { label: 'Perfect — groomed, clear skies', mult: 0.65, note: 'Maximum visibility and predictable surface' },
+                    { label: 'Fresh powder, sunny',            mult: 0.90, note: 'Soft landings, but unmarked hazards beneath snow' },
+                    { label: 'Icy / hard-packed',              mult: 1.55, note: 'Edges bite less; falls are faster and harder' },
+                    { label: 'Moguls / heavy chop',            mult: 1.35, note: 'High joint and collision stress, unpredictable line' },
+                    { label: 'Blizzard / whiteout',            mult: 2.10, note: 'No depth perception; can\'t see terrain features' },
+                    { label: 'Spring slush / wet heavy snow',  mult: 1.20, note: 'Catches edges; wet avalanche risk off-piste' },
+                ]
+            },
+            {
+                id: 'helmet', name: 'Protective Gear', icon: '🪖',
+                question: 'Are you wearing a helmet and protective gear?',
+                options: [
+                    { label: 'Full kit — helmet, back protector, goggles', mult: 0.45, note: 'Helmets reduce fatal head injuries by ~35%; back protector crucial off-piste' },
+                    { label: 'Helmet and goggles only',                     mult: 0.65, note: 'Good head protection; torso and spine still exposed' },
+                    { label: 'Helmet only (no goggles)',                    mult: 0.75, note: 'Head protected; visibility can be compromised' },
+                    { label: 'No helmet, no protection',                   mult: 1.85, note: 'Head trauma is the leading cause of ski fatalities' },
+                ]
+            },
+            {
+                id: 'resort', name: 'Resort / Location', icon: '📍',
+                question: 'Where are you skiing?',
+                options: [
+                    { label: 'Major US/Canada resort (Whistler, Vail…)',   mult: 0.75, note: 'Excellent ski patrol, grooming, and safety signage' },
+                    { label: 'European resort — Alps (Chamonix, Zermatt…)', mult: 0.80, note: 'World-class infrastructure; off-piste culture present' },
+                    { label: 'Japan resort (Hokkaido, Nagano…)',            mult: 0.78, note: 'Deep powder cushions falls; excellent patrol' },
+                    { label: 'Smaller / budget resort',                    mult: 1.15, note: 'Fewer patrol staff, older lifts, less grooming' },
+                    { label: 'Uncontrolled backcountry / heli-ski',        mult: 2.50, note: 'No patrol, avalanche terrain, rescue may be hours away' },
+                ]
+            },
+        ]
+    },
+
+    plane: {
+        id: 'plane',
+        name: 'Commercial Flight',
+        emoji: '✈️',
+        unit: 'flight',
+        yearRange: [1960, 2035],
+        getBaseOdds(year) {
+            const table = {
+                1960:120000, 1965:180000, 1970:280000, 1975:350000,
+                1980:420000, 1985:550000, 1990:680000, 1995:850000,
+                2000:1100000, 2005:1600000, 2010:2100000,
+                2015:3100000, 2016:2800000, 2017:7400000,
+                2018:3300000, 2019:5500000, 2020:4200000,
+                2021:3800000, 2022:2900000, 2023:3100000,
+                2024:2700000, 2025:2800000, 2026:2900000,
+                2027:3050000, 2028:3200000, 2029:3350000, 2030:3500000,
+            };
+            return interpolate(table, year, 2900000);
+        },
+        context(year, odds) {
+            return `In ${year}, commercial aviation saw roughly 1 fatal accident per ${Math.round(odds/1e6*10)/10}M flights. You are more likely to be struck by lightning twice in a lifetime than to die on a single commercial flight.`;
+        },
+        deepenCategories: [
+            {
+                id: 'time', name: 'Time of Day', icon: '🕐',
+                question: 'What time are you flying?',
+                options: [
+                    { label: 'Morning  (6 AM – 12 PM)',   mult: 0.82, note: 'Rested crews, clearest conditions — safest window' },
+                    { label: 'Afternoon (12 PM – 6 PM)',  mult: 0.93, note: 'Slight afternoon thermal turbulence' },
+                    { label: 'Evening  (6 PM – 12 AM)',   mult: 1.14, note: 'Fatigue begins to accumulate in crews' },
+                    { label: 'Night    (12 AM – 6 AM)',   mult: 1.40, note: 'Lowest visibility, circadian fatigue peak' },
+                ]
+            },
+            {
+                id: 'weather', name: 'Weather', icon: '🌦️',
+                question: 'What are the weather conditions?',
+                options: [
+                    { label: 'Clear skies',              mult: 0.68, note: 'Ideal flying conditions — risk at its lowest' },
+                    { label: 'Light rain',               mult: 1.05, note: 'Minimal additional risk' },
+                    { label: 'Thunderstorm / turbulence',mult: 1.90, note: 'Wind shear and lightning significantly raise risk' },
+                    { label: 'Fog / low visibility',     mult: 1.48, note: 'Approach and landing phase most affected' },
+                    { label: 'Snow / icing conditions',  mult: 1.65, note: 'De-icing critical; ground handling risk also rises' },
+                ]
+            },
+            {
+                id: 'region', name: 'Destination Country', icon: '🌍',
+                question: 'Which country are you flying to (or within)?',
+                options: [
+                    // ── Extremely Safe (top-tier civil aviation authority oversight) ──
+                    { label: 'Australia',              mult: 0.58, note: 'CASA oversight; world-class safety record' },
+                    { label: 'Austria',                mult: 0.60, note: 'EASA member; strong regulatory compliance' },
+                    { label: 'Canada',                 mult: 0.60, note: 'TC Civil Aviation; among safest globally' },
+                    { label: 'Denmark',                mult: 0.58, note: 'EASA; Scandinavian safety culture' },
+                    { label: 'Finland',                mult: 0.57, note: 'EASA; excellent safety record' },
+                    { label: 'Germany',                mult: 0.59, note: 'Luftfahrt-Bundesamt; rigorous standards' },
+                    { label: 'Iceland',                mult: 0.55, note: 'Small but very well-regulated airspace' },
+                    { label: 'Ireland',                mult: 0.58, note: 'IAA / EASA; home of Ryanair safety culture' },
+                    { label: 'Japan',                  mult: 0.54, note: 'JCAB; near-zero fatal accidents in decades' },
+                    { label: 'Luxembourg',             mult: 0.58, note: 'EASA; hub for cargo, strict oversight' },
+                    { label: 'Netherlands',            mult: 0.59, note: 'ILT / EASA; home of KLM world-class ops' },
+                    { label: 'New Zealand',            mult: 0.58, note: 'CAA NZ; consistently top-ranked globally' },
+                    { label: 'Norway',                 mult: 0.57, note: 'CAA Norway; Scandinavian safety culture' },
+                    { label: 'Singapore',              mult: 0.54, note: 'CAAS; Singapore Airlines consistently #1 safest' },
+                    { label: 'Sweden',                 mult: 0.57, note: 'Transportstyrelsen / EASA; excellent record' },
+                    { label: 'Switzerland',            mult: 0.58, note: 'BAZL; stringent Swiss engineering standards' },
+                    { label: 'United Kingdom',         mult: 0.60, note: 'CAA UK; post-Brexit EASA equivalent standards' },
+                    { label: 'United States',          mult: 0.62, note: 'FAA; world\'s busiest and safest airspace' },
+
+                    // ── Very Safe ──
+                    { label: 'Belgium',                mult: 0.65, note: 'EASA member; Brussels is major EU hub' },
+                    { label: 'Chile',                  mult: 0.68, note: 'DGAC Chile; best safety record in South America' },
+                    { label: 'Czech Republic',         mult: 0.66, note: 'CAA CZ / EASA; strong Eastern European operator' },
+                    { label: 'Estonia',                mult: 0.65, note: 'ECAA / EASA; small, well-run airspace' },
+                    { label: 'France',                 mult: 0.64, note: 'DGAC / EASA; Air France among world\'s best' },
+                    { label: 'Hong Kong',              mult: 0.63, note: 'CAD HK; Cathay Pacific top-tier safety' },
+                    { label: 'Hungary',                mult: 0.67, note: 'EASA member; solid Central European record' },
+                    { label: 'Israel',                 mult: 0.66, note: 'CAAI; El Al has excellent safety history' },
+                    { label: 'Italy',                  mult: 0.66, note: 'ENAC / EASA; modern fleet and oversight' },
+                    { label: 'Latvia',                 mult: 0.65, note: 'CAA Latvia / EASA member' },
+                    { label: 'Lithuania',              mult: 0.65, note: 'CAA Lithuania / EASA member' },
+                    { label: 'Malta',                  mult: 0.65, note: 'CAA Malta / EASA; small busy hub' },
+                    { label: 'Poland',                 mult: 0.67, note: 'ULC / EASA; modernised fleet post-2004' },
+                    { label: 'Portugal',               mult: 0.65, note: 'ANAC / EASA; TAP has good safety record' },
+                    { label: 'Qatar',                  mult: 0.63, note: 'QCAA; Qatar Airways ranked among world\'s safest' },
+                    { label: 'Romania',                mult: 0.70, note: 'RCAA / EASA; improving rapidly' },
+                    { label: 'Slovakia',               mult: 0.66, note: 'CAA SR / EASA member' },
+                    { label: 'Slovenia',               mult: 0.65, note: 'CAA SI / EASA member' },
+                    { label: 'South Korea',            mult: 0.64, note: 'MOLIT AAIB; Korean Air / Asiana well-regulated' },
+                    { label: 'Spain',                  mult: 0.65, note: 'AESA / EASA; Iberia and Vueling solid record' },
+                    { label: 'Taiwan',                 mult: 0.65, note: 'CAA Taiwan; EVA Air among Asia\'s safest' },
+                    { label: 'United Arab Emirates',   mult: 0.64, note: 'GCAA; Emirates and Etihad world-class safety' },
+                    { label: 'Uruguay',                mult: 0.69, note: 'DINACIA; smallest but safest in southern cone' },
+
+                    // ── Safe ──
+                    { label: 'Argentina',              mult: 0.82, note: 'ANAC Argentina; Aerolíneas Argentinas regulated' },
+                    { label: 'Bahrain',                mult: 0.75, note: 'CAA Bahrain; Gulf Aviation Academy based here' },
+                    { label: 'Bosnia & Herzegovina',   mult: 0.80, note: 'BHDCA; small airspace, ECAA-aligned' },
+                    { label: 'Brazil',                 mult: 0.85, note: 'ANAC Brazil; LATAM / GOL have solid records' },
+                    { label: 'Bulgaria',               mult: 0.78, note: 'CAA BG / EASA; EU member since 2007' },
+                    { label: 'China',                  mult: 0.82, note: 'CAAC; major carriers improved dramatically since 2010' },
+                    { label: 'Colombia',               mult: 0.88, note: 'Aerocivil; Avianca well-regarded regionally' },
+                    { label: 'Costa Rica',             mult: 0.84, note: 'DGAC Costa Rica; small but regulated' },
+                    { label: 'Croatia',                mult: 0.76, note: 'CCAA / EASA; EU member since 2013' },
+                    { label: 'Cuba',                   mult: 0.95, note: 'IACC; ageing fleet; limited oversight transparency' },
+                    { label: 'Cyprus',                 mult: 0.76, note: 'DGCA Cyprus / EASA member' },
+                    { label: 'Ecuador',                mult: 0.90, note: 'DGAC Ecuador; terrain challenges in Andes' },
+                    { label: 'Egypt',                  mult: 0.95, note: 'ECAA; EgyptAir record mixed; terrorism risk on record' },
+                    { label: 'Georgia',                mult: 0.85, note: 'CAA Georgia; improving post-Soviet infrastructure' },
+                    { label: 'Greece',                 mult: 0.76, note: 'HCAA / EASA; Aegean Airlines has good record' },
+                    { label: 'India',                  mult: 0.88, note: 'DGCA; IndiGo / Air India improving but large system' },
+                    { label: 'Indonesia',              mult: 0.98, note: 'DGCA Indonesia; historically problematic, improving' },
+                    { label: 'Iran',                   mult: 1.10, note: 'CAO Iran; ageing US-sanctioned fleet; risk elevated' },
+                    { label: 'Jordan',                 mult: 0.82, note: 'CARC; Royal Jordanian well-regarded' },
+                    { label: 'Kazakhstan',             mult: 0.90, note: 'CAAK; Air Astana (EASA certified) is much safer than others' },
+                    { label: 'Kuwait',                 mult: 0.78, note: 'DGCA Kuwait; Gulf region safety standards' },
+                    { label: 'Lebanon',                mult: 1.05, note: 'DGCA Lebanon; political instability affects oversight' },
+                    { label: 'Malaysia',               mult: 0.85, note: 'CAAM; AirAsia well-operated; MH incidents noted' },
+                    { label: 'Mexico',                 mult: 0.88, note: 'AFAC; AEROMEXICO regulated; domestic carriers vary' },
+                    { label: 'Morocco',                mult: 0.88, note: 'DGAC Morocco; Royal Air Maroc well-regulated' },
+                    { label: 'Oman',                   mult: 0.80, note: 'CAAM Oman; Oman Air has good safety record' },
+                    { label: 'Panama',                 mult: 0.88, note: 'AAC Panama; Copa Airlines one of safest in region' },
+                    { label: 'Paraguay',               mult: 0.95, note: 'DINAC; small market, limited modern oversight' },
+                    { label: 'Peru',                   mult: 0.92, note: 'DGAC Peru; Andes terrain adds approach risk' },
+                    { label: 'Philippines',            mult: 0.95, note: 'CAAP; previously EU blacklisted, now improving' },
+                    { label: 'Russia',                 mult: 1.15, note: 'Rosaviatsia; domestic carriers have mixed records' },
+                    { label: 'Saudi Arabia',           mult: 0.82, note: 'GACA; Saudia improving; regional airports vary' },
+                    { label: 'Serbia',                 mult: 0.82, note: 'CAD Serbia; Air Serbia EASA-compliant' },
+                    { label: 'South Africa',           mult: 0.92, note: 'SACAA; SAA / Comair historically mixed' },
+                    { label: 'Thailand',               mult: 0.92, note: 'CAAT; removed from ICAO significant concern list 2020' },
+                    { label: 'Tunisia',                mult: 0.90, note: 'DGAC Tunisia; Tunisair regulated' },
+                    { label: 'Turkey',                 mult: 0.82, note: 'DGCA Turkey; Turkish Airlines has excellent record' },
+                    { label: 'Ukraine',                mult: 1.20, note: 'AVIA Ukraine; active conflict zones restrict safe airspace' },
+                    { label: 'Venezuela',              mult: 1.15, note: 'INAC; economic crisis has affected maintenance standards' },
+                    { label: 'Vietnam',                mult: 0.88, note: 'CAAV; Vietnam Airlines improving, modern fleet' },
+
+                    // ── Elevated Risk ──
+                    { label: 'Albania',                mult: 1.10, note: 'AAC Albania; small market, limited oversight history' },
+                    { label: 'Algeria',                mult: 1.12, note: 'DACM; Air Algérie has had fatal incidents' },
+                    { label: 'Armenia',                mult: 1.05, note: 'GCAA Armenia; improving post-Soviet' },
+                    { label: 'Azerbaijan',             mult: 1.05, note: 'CAA AZ; AZAL improving but varied record' },
+                    { label: 'Bangladesh',             mult: 1.25, note: 'CAAB; Biman Bangladesh — maintenance concerns' },
+                    { label: 'Bolivia',                mult: 1.20, note: 'DGAC Bolivia; La Paz (highest commercial airport) risky' },
+                    { label: 'Cambodia',               mult: 1.30, note: 'SSCA; limited oversight, Angkor routes challenging' },
+                    { label: 'Cameroon',               mult: 1.55, note: 'CCAA; domestic routes have poor safety record' },
+                    { label: 'Ghana',                  mult: 1.25, note: 'GCAA; improving but regional operators vary' },
+                    { label: 'Guatemala',              mult: 1.28, note: 'DGAC GT; mountainous terrain, small operators' },
+                    { label: 'Haiti',                  mult: 1.60, note: 'ONA Haiti; extremely limited oversight capacity' },
+                    { label: 'Honduras',               mult: 1.30, note: 'AHAC; Toncontín airport historically dangerous' },
+                    { label: 'Iraq',                   mult: 1.55, note: 'ICAA; post-conflict infrastructure, security risk' },
+                    { label: 'Ivory Coast',            mult: 1.35, note: 'ANAC CI; Air Côte d\'Ivoire limited oversight' },
+                    { label: 'Kenya',                  mult: 1.30, note: 'KCAA; Kenya Airways regulated but incidents noted' },
+                    { label: 'Kyrgyzstan',             mult: 1.45, note: 'CAI Kyrgyzstan; previously EU-banned airlines' },
+                    { label: 'Laos',                   mult: 1.40, note: 'AMPHAN; Lao Airlines has had incidents' },
+                    { label: 'Libya',                  mult: 1.80, note: 'LYCAA; civil conflict severely impacts oversight' },
+                    { label: 'Madagascar',             mult: 1.50, note: 'ACM; Air Madagascar limited maintenance capacity' },
+                    { label: 'Mongolia',               mult: 1.20, note: 'CAAM; MIAT improving, remote airports challenging' },
+                    { label: 'Mozambique',             mult: 1.45, note: 'IACM; LAM Mozambique — fatal crashes on record' },
+                    { label: 'Myanmar',                mult: 1.35, note: 'DCA Myanmar; political instability affects safety' },
+                    { label: 'Nepal',                  mult: 1.80, note: 'CAAN; Himalayan terrain — most dangerous approach airports' },
+                    { label: 'Nicaragua',              mult: 1.28, note: 'INAC; limited modern fleet and oversight' },
+                    { label: 'Niger',                  mult: 1.55, note: 'ANAC Niger; very limited aviation infrastructure' },
+                    { label: 'Nigeria',                mult: 1.55, note: 'NCAA; domestic operators have mixed safety records' },
+                    { label: 'Pakistan',               mult: 1.45, note: 'CAA Pakistan; PIA has had serious incidents; PIA suspended from EU' },
+                    { label: 'Papua New Guinea',       mult: 1.70, note: 'CASA PNG; remote jungle strips highly dangerous' },
+                    { label: 'Sierra Leone',           mult: 1.65, note: 'SLCAA; very limited oversight capacity' },
+                    { label: 'Sri Lanka',              mult: 1.15, note: 'CAASL; SriLankan Airlines regulated' },
+                    { label: 'Sudan',                  mult: 1.80, note: 'SCAA; conflict and ageing fleet compound risk' },
+                    { label: 'Syria',                  mult: 2.20, note: 'DGCA Syria; active conflict; most airspace closed' },
+                    { label: 'Tanzania',               mult: 1.45, note: 'TCAA; Precision Air crash 2023 — local carriers vary' },
+                    { label: 'Tajikistan',             mult: 1.40, note: 'CAI Tajikistan; limited oversight, old aircraft' },
+                    { label: 'Turkmenistan',           mult: 1.35, note: 'SCAIIT; Turkmenistan Airlines — Soviet-era practices' },
+                    { label: 'Uganda',                 mult: 1.45, note: 'UCAA; limited fleet, remote airstrip risk' },
+                    { label: 'Uzbekistan',             mult: 1.20, note: 'CAA UZ; Uzbekistan Air improving but varied' },
+                    { label: 'Zambia',                 mult: 1.45, note: 'DCAA Zambia; limited maintenance oversight' },
+                    { label: 'Zimbabwe',               mult: 1.50, note: 'CAAZ; Air Zimbabwe collapsed; charter risk high' },
+
+                    // ── High / Very High Risk ──
+                    { label: 'Afghanistan',            mult: 2.80, note: 'ACAA; active conflict, targeted threats to aircraft' },
+                    { label: 'Angola',                 mult: 1.65, note: 'INAVIC; TAAG Angola Airlines improving but remote ops risky' },
+                    { label: 'Central African Republic', mult: 2.50, note: 'ANAC CAR; virtually no functioning civil aviation authority' },
+                    { label: 'Chad',                   mult: 2.10, note: 'ANAC Chad; very limited oversight, poor infrastructure' },
+                    { label: 'Comoros',                mult: 1.80, note: 'ADAC; Yemenia crash near Comoros 2009 — minimal oversight' },
+                    { label: 'Congo (Republic)',       mult: 2.00, note: 'ANAC Congo; Brazzaville airlines EU blacklisted' },
+                    { label: 'DR Congo',               mult: 2.60, note: 'RVA; essentially all Congolese carriers EU-banned' },
+                    { label: 'Eritrea',                mult: 1.90, note: 'DCAA Eritrea; isolated, minimal international oversight' },
+                    { label: 'Ethiopia',               mult: 1.35, note: 'ECAA; Ethiopian Airlines is excellent but domestic operators vary' },
+                    { label: 'Equatorial Guinea',      mult: 2.00, note: 'DGAC EG; airlines EU blacklisted, poor oversight' },
+                    { label: 'Gabon',                  mult: 1.65, note: 'ANAC Gabon; Afrijet improving but regional risk' },
+                    { label: 'Gambia',                 mult: 1.60, note: 'GCAA Gambia; very limited aviation infrastructure' },
+                    { label: 'Guinea',                 mult: 2.00, note: 'ANAC Guinea; airlines on EU banned list' },
+                    { label: 'Guinea-Bissau',          mult: 2.20, note: 'ANAC GB; severely underdeveloped aviation system' },
+                    { label: 'Indonesia (remote)',     mult: 1.40, note: 'Remote island airstrips; short-haul domestic risk elevated' },
+                    { label: 'Liberia',                mult: 2.00, note: 'LCAA; virtually no functioning oversight post-conflict' },
+                    { label: 'Mali',                   mult: 2.00, note: 'ANAC Mali; conflict and instability affect all services' },
+                    { label: 'Mauritania',             mult: 1.55, note: 'ANAC Mauritania; limited infrastructure, desert terrain' },
+                    { label: 'North Korea',            mult: 2.80, note: 'CAAK; Air Koryo — one of world\'s most dangerous airlines' },
+                    { label: 'São Tomé & Príncipe',    mult: 1.70, note: 'AAAC; remote island, limited oversight' },
+                    { label: 'Senegal',                mult: 1.30, note: 'ANACS; Air Sénégal improving, but incidents on record' },
+                    { label: 'Somalia',                mult: 3.20, note: 'CAA Somalia; active conflict, almost no effective oversight' },
+                    { label: 'South Sudan',            mult: 2.80, note: 'SSCA; active civil war; no functioning CAA' },
+                    { label: 'Suriname',               mult: 1.25, note: 'CAD Suriname; Surinam Airways fatal crash on record' },
+                    { label: 'Togo',                   mult: 1.50, note: 'ANAC Togo; Air Togo minimal international compliance' },
+                    { label: 'Yemen',                  mult: 3.00, note: 'CAMA; active conflict, missiles/drone threat to aircraft' },
+                ]
+            },
+            {
+                id: 'airline', name: 'Airline Type', icon: '🏢',
+                question: 'What type of airline are you flying with?',
+                options: [
+                    { label: 'Major international carrier',  mult: 0.52, note: 'e.g. Delta, Lufthansa, Emirates, Singapore — best safety record' },
+                    { label: 'Full-service national carrier', mult: 0.84, note: 'Well-regulated, quality maintenance programmes' },
+                    { label: 'Low-cost / budget carrier',    mult: 1.22, note: 'Still very safe overall; varies by operator' },
+                    { label: 'Regional / commuter airline',  mult: 1.58, note: 'More takeoffs & landings per route, smaller aircraft' },
+                    { label: 'Charter / private operator',   mult: 2.15, note: 'Highly variable oversight and maintenance standards' },
+                ]
+            },
+        ]
+    },
+
+    car: {
+        id: 'car',
+        name: 'Car Journey',
+        emoji: '🚗',
+        unit: 'trip',
+        yearRange: [1960, 2035],
+        getBaseOdds(year) {
+            const table = {
+                1960:2800, 1965:3200, 1970:3800, 1975:4400,
+                1980:5200, 1985:6500, 1990:8000, 1995:9500,
+                2000:11000, 2005:14000, 2010:18000, 2015:22000,
+                2016:20000, 2017:21000, 2018:22000, 2019:23000,
+                2020:19000, 2021:18000, 2022:20000, 2023:21500,
+                2024:22500, 2025:23500, 2026:24500, 2030:30000,
+            };
+            return interpolate(table, year, 22000);
+        },
+        context(year, odds) {
+            return `In ${year}, roughly 1 in ${Math.round(odds).toLocaleString()} car trips ends fatally. Per mile travelled, driving is statistically about 95× more dangerous than flying on a commercial aircraft.`;
+        },
+        deepenCategories: [
+            {
+                id: 'time', name: 'Time of Day', icon: '🕐',
+                question: 'When are you driving?',
+                options: [
+                    { label: 'Morning commute (7–9 AM)',    mult: 1.12, note: 'High density, some driver fatigue' },
+                    { label: 'Midday (9 AM – 3 PM)',         mult: 0.72, note: 'Lowest traffic, best visibility' },
+                    { label: 'Evening commute (3–7 PM)',     mult: 1.22, note: 'Peak volume, more aggressive driving' },
+                    { label: 'Night (7 PM – 12 AM)',         mult: 1.58, note: 'Reduced visibility; drunk driving begins' },
+                    { label: 'Late night (12–5 AM)',         mult: 2.25, note: 'Alcohol-related deaths peak around 1–3 AM' },
+                ]
+            },
+            {
+                id: 'weather', name: 'Weather', icon: '🌦️',
+                question: 'What are the weather conditions?',
+                options: [
+                    { label: 'Clear and dry',         mult: 0.72, note: 'Optimal traction and visibility' },
+                    { label: 'Light rain',            mult: 1.32, note: 'Roads more slippery than drivers expect' },
+                    { label: 'Heavy rain / storm',    mult: 1.90, note: 'Hydroplaning, spray, reduced sight lines' },
+                    { label: 'Fog',                   mult: 1.75, note: 'Reaction time and visibility severely cut' },
+                    { label: 'Snow or ice',           mult: 2.55, note: 'Stopping distances can multiply ×10' },
+                ]
+            },
+            {
+                id: 'road', name: 'Road Type', icon: '🛣️',
+                question: 'What type of road?',
+                options: [
+                    { label: 'Motorway / Interstate',    mult: 0.62, note: 'Controlled access, divided, no pedestrians' },
+                    { label: 'Dual carriageway',         mult: 0.82, note: 'Mostly separated flows, few junctions' },
+                    { label: 'Urban / city roads',       mult: 1.12, note: 'Pedestrians, cyclists, junctions, parking' },
+                    { label: 'Rural single-track road',  mult: 1.85, note: 'Head-on risk, no barriers, sudden hazards' },
+                    { label: 'Mountain / hairpin road',  mult: 2.35, note: 'Drop risk, tight blind corners, no run-off' },
+                ]
+            },
+            {
+                id: 'driver', name: 'Driver Profile', icon: '👤',
+                question: 'Who is driving?',
+                options: [
+                    { label: 'Experienced adult (30–60)',  mult: 0.68, note: 'Best risk-awareness, predictable decision-making' },
+                    { label: 'Young adult (20–29)',         mult: 1.10, note: 'Improving skill, still higher risk-taking tendency' },
+                    { label: 'Teen driver (16–19)',         mult: 2.25, note: '3× higher crash rate than middle-aged adults' },
+                    { label: 'Elderly driver (70+)',        mult: 1.42, note: 'Slower reactions; greater fragility in crashes' },
+                    { label: 'Drunk / impaired driver',    mult: 7.20, note: 'Alcohol implicated in ~30% of all road fatalities' },
+                ]
+            },
+        ]
+    },
+
+    motorcycle: {
+        id: 'motorcycle',
+        name: 'Motorcycle',
+        emoji: '🏍️',
+        unit: 'ride',
+        yearRange: [1960, 2035],
+        getBaseOdds(year) {
+            const base = 800 + Math.max(0, (year - 1970) * 16);
+            return Math.min(base, 2500);
+        },
+        context(year, odds) {
+            return `In ${year}, the risk of a fatal crash per motorcycle ride is roughly 1 in ${Math.round(odds).toLocaleString()}. Motorcyclists are about 29× more likely to die per mile than car occupants.`;
+        },
+        deepenCategories: [
+            {
+                id: 'gear', name: 'Protective Gear', icon: '🪖',
+                question: 'What protective gear are you wearing?',
+                options: [
+                    { label: 'Full kit — helmet, jacket, gloves, boots', mult: 0.38, note: 'Proper gear cuts fatality risk by ~60%' },
+                    { label: 'Helmet only',                              mult: 0.68, note: 'Helmets alone reduce head-injury deaths by 37%' },
+                    { label: 'Partial / casual clothing',               mult: 1.15, note: 'Severe road-rash risk in any slide' },
+                    { label: 'No protective gear at all',               mult: 2.60, note: 'Extreme risk — zero protection in impact or slide' },
+                ]
+            },
+            {
+                id: 'road', name: 'Road Type', icon: '🛣️',
+                question: 'Where are you riding?',
+                options: [
+                    { label: 'Highway / motorway',     mult: 0.72, note: 'No cross traffic; speed is the primary hazard' },
+                    { label: 'Urban streets',          mult: 1.00, note: 'Car doors, junctions, pedestrians' },
+                    { label: 'Twisty country roads',   mult: 1.82, note: 'Overspeed into corners — most common fatality scenario' },
+                    { label: 'Track / circuit',        mult: 2.30, note: 'Very high speed, but barriers and medics on-site' },
+                ]
+            },
+            {
+                id: 'time', name: 'Time of Day', icon: '🕐',
+                question: 'When are you riding?',
+                options: [
+                    { label: 'Daytime',      mult: 0.72, note: 'Maximum visibility for rider and other road users' },
+                    { label: 'Dusk / dawn',  mult: 1.35, note: 'Sun glare and transitional lighting are hazardous' },
+                    { label: 'Night',        mult: 1.95, note: 'Motorcycle headlights give poor peripheral coverage' },
+                ]
+            },
+        ]
+    },
+
+    swimming: {
+        id: 'swimming',
+        name: 'Open Water Swim',
+        emoji: '🏊',
+        unit: 'swim',
+        yearRange: [1970, 2035],
+        getBaseOdds(year) {
+            return Math.round(55000 + Math.max(0, (year - 1970) * 600));
+        },
+        context(year, odds) {
+            return `In ${year}, the risk of drowning per open-water swim is roughly 1 in ${Math.round(odds).toLocaleString()}. Globally, drowning kills around 300,000 people per year — more than sharks, crocodiles, and jellyfish combined.`;
+        },
+        deepenCategories: [
+            {
+                id: 'location', name: 'Location', icon: '📍',
+                question: 'Where are you swimming?',
+                options: [
+                    { label: 'Supervised pool',         mult: 0.18, note: 'Lifeguards, controlled depth, no currents' },
+                    { label: 'Supervised beach',        mult: 0.58, note: 'Lifeguards on duty, flags mark safe zones' },
+                    { label: 'Unsupervised beach',      mult: 1.22, note: 'Rip currents a major and under-appreciated hazard' },
+                    { label: 'Lake / reservoir',        mult: 1.55, note: 'Cold water shock; poor underwater visibility' },
+                    { label: 'River / rapids',          mult: 2.85, note: 'Currents, submerged hazards, cold fast water' },
+                    { label: 'Open ocean',              mult: 3.60, note: 'Currents, fatigue, distance to shore' },
+                ]
+            },
+            {
+                id: 'ability', name: 'Swimmer Ability', icon: '💪',
+                question: 'How strong a swimmer are you?',
+                options: [
+                    { label: 'Competitive / trained',         mult: 0.32, note: 'Strong technique, calm under pressure, knows limits' },
+                    { label: 'Confident recreational',        mult: 0.78, note: 'Comfortable in water, generally sensible' },
+                    { label: 'Basic swimmer',                 mult: 1.45, note: 'Underestimates open-water risks' },
+                    { label: 'Beginner / non-swimmer',        mult: 5.20, note: 'Extremely dangerous in open water' },
+                ]
+            },
+        ]
+    },
+
+    climbing: {
+        id: 'climbing',
+        name: 'Mountain Climbing',
+        emoji: '🧗',
+        unit: 'attempt',
+        yearRange: [1970, 2035],
+        getBaseOdds(year) {
+            return Math.round(450 + Math.max(0, (year - 1970) * 22));
+        },
+        context(year, odds) {
+            return `In ${year}, the risk per climbing attempt is roughly 1 in ${Math.round(odds).toLocaleString()}. Elite mountaineering remains one of the most statistically dangerous activities a person can undertake.`;
+        },
+        deepenCategories: [
+            {
+                id: 'peak', name: 'Peak / Difficulty', icon: '⛰️',
+                question: 'What are you climbing?',
+                options: [
+                    { label: 'Beginner hiking trail',            mult: 0.08, note: 'Marked path, no technical skill required' },
+                    { label: 'Intermediate Alpine route',        mult: 0.55, note: 'Some exposure; ice and snow possible' },
+                    { label: 'Technical roped rock climb',       mult: 1.20, note: 'Falls arrested but equipment failure risk' },
+                    { label: 'High altitude (4,000–6,000 m)',    mult: 2.60, note: 'Altitude sickness, rapid weather changes' },
+                    { label: '8,000 m+ peak (Everest etc.)',     mult: 16.0, note: 'Everest summit has roughly a 1% fatality rate' },
+                ]
+            },
+            {
+                id: 'experience', name: 'Your Experience', icon: '🎓',
+                question: 'How experienced are you?',
+                options: [
+                    { label: 'Professional / mountain guide',    mult: 0.32, note: 'Years of training, hazard recognition automatic' },
+                    { label: 'Experienced hobbyist',             mult: 0.68, note: 'Solid risk management, knows own limits' },
+                    { label: 'Intermediate climber',             mult: 1.22, note: 'Known unknowns; generally manageable' },
+                    { label: 'Beginner on guided tour',          mult: 1.85, note: 'Fully reliant on guide judgment' },
+                    { label: 'Beginner solo / unguided',         mult: 5.20, note: 'Unknown unknowns — extremely high risk' },
+                ]
+            },
+            {
+                id: 'season', name: 'Season', icon: '📅',
+                question: 'What season are you climbing in?',
+                options: [
+                    { label: 'Summer (optimal window)', mult: 0.68, note: 'Best weather, longest daylight, most support available' },
+                    { label: 'Spring / autumn',         mult: 1.12, note: 'Variable conditions and weather windows' },
+                    { label: 'Winter',                  mult: 2.85, note: 'Extreme cold, avalanche risk, short daylight hours' },
+                ]
+            },
+        ]
+    },
+};
+
+// ═══════════════════════════════════════════════════════
+// NATURAL DISASTER SCENARIOS
+// ═══════════════════════════════════════════════════════
+
+const DISASTER_SCENARIOS = {
+
+    tsunami: {
+        id: 'tsunami',
+        name: 'Tsunami',
+        emoji: '🌊',
+        unit: 'tsunami event',
+        yearRange: [1950, 2035],
+        getBaseOdds(year) {
+            // Odds of dying IF a major tsunami wave reaches your coastal location
+            // 2004 Indian Ocean: ~227K dead / ~2M in coastal impact zone ≈ 1 in 9
+            // Pre-2004: no Pacific/Indian Ocean warning systems — similar raw danger, no escape time
+            // Post-2004: IOTWS & PTWC buoy networks dramatically improve survival
+            // 1960 Valdivia tsunami (Chile coast): thousands dead, ~1 in 8–10 in impact zone
+            const table = {
+                1950:8, 1960:8, 1970:9, 1980:9, 1990:9,
+                2000:9, 2004:9, 2005:14, 2010:20, 2015:26,
+                2020:30, 2025:35, 2030:40,
+            };
+            return interpolate(table, year, 18);
+        },
+        context(year, odds) {
+            return `In ${year}, if a major tsunami wave reaches your coastal location, the base chance of dying is roughly 1 in ${Math.round(odds)}. The 2004 Indian Ocean tsunami killed ~1 in 9 people directly in the coastal impact zone. Post-2004 warning systems have roughly halved mortality — but elevation and speed of evacuation matter most.`;
+        },
+        deepenCategories: [
+            {
+                id: 'warning', name: 'Warning Time', icon: '⚠️',
+                question: 'How much warning did you receive?',
+                options: [
+                    { label: 'No warning — total surprise',        mult: 0.18, note: '2004 Indian Ocean had almost no warning for most' },
+                    { label: 'A few minutes (local earthquake felt)', mult: 0.35, note: 'Enough to start moving but little time to reach safety' },
+                    { label: '10–30 minutes (siren / alert)',       mult: 0.65, note: 'Enough time for most people to evacuate low-ground' },
+                    { label: '30 min – 2 hours (early alert)',      mult: 1.80, note: 'PTWC / DART buoy network gives time to fully evacuate' },
+                    { label: '2+ hours advance warning',            mult: 3.50, note: 'Full evacuation achievable; survival rates very high' },
+                ]
+            },
+            {
+                id: 'elevation', name: 'Your Elevation', icon: '⛰️',
+                question: 'How far above sea level are you?',
+                options: [
+                    { label: 'On the beach / sea level',     mult: 0.10, note: 'First wave impact zone — highest mortality' },
+                    { label: '1–5 m above sea level',        mult: 0.25, note: 'Most major tsunamis exceed this inundation depth' },
+                    { label: '5–15 m above sea level',       mult: 0.60, note: '2011 Tōhoku reached up to 40 m in some areas' },
+                    { label: '15–30 m above sea level',      mult: 1.50, note: 'Safe from most tsunamis; extreme events may still reach' },
+                    { label: '30 m+ above sea level',        mult: 4.00, note: 'Above the inundation zone for virtually all recorded tsunamis' },
+                ]
+            },
+            {
+                id: 'mobility', name: 'Your Mobility', icon: '🏃',
+                question: 'How able are you to evacuate quickly?',
+                options: [
+                    { label: 'Fit adult, on foot, clear route', mult: 2.50, note: 'Can cover significant elevation quickly' },
+                    { label: 'In a car on clear roads',         mult: 1.80, note: 'Fast but traffic jams killed many in 2004' },
+                    { label: 'In a car in heavy traffic',       mult: 0.65, note: 'Gridlock trapped many fleeing 2004 and 2011 tsunamis' },
+                    { label: 'Elderly / mobility impaired',     mult: 0.40, note: 'Significantly reduced evacuation speed' },
+                    { label: 'In a multi-storey building',      mult: 1.30, note: 'Moving up floors can substitute for moving inland' },
+                ]
+            },
+            {
+                id: 'region', name: 'Region', icon: '🌏',
+                question: 'Where are you?',
+                options: [
+                    { label: 'Japan (Pacific coast)',            mult: 1.60, note: 'Best warning systems + vertical evacuation towers' },
+                    { label: 'USA — Hawaii or Pacific coast',    mult: 1.40, note: 'PTWC; well-maintained evacuation routes' },
+                    { label: 'New Zealand / Australia',          mult: 1.30, note: 'Good systems; lower exposure than Pacific Rim' },
+                    { label: 'South-East Asia (Thailand, Indonesia…)', mult: 0.70, note: 'Improving post-2004 but large at-risk populations' },
+                    { label: 'Indian Ocean coast (Sri Lanka, India…)', mult: 0.65, note: 'IOTWS improving; high population density near shore' },
+                    { label: 'Mediterranean coast',             mult: 0.90, note: 'Lower tsunami frequency but real historic risk' },
+                ]
+            },
+        ]
+    },
+
+    earthquake: {
+        id: 'earthquake',
+        name: 'Earthquake',
+        emoji: '🫨',
+        unit: 'earthquake event',
+        yearRange: [1900, 2035],
+        getBaseOdds(year) {
+            // Base: typical M6.5+ earthquake hitting a mixed urban area
+            // (not worst-case Haiti, not best-case Japan — building type drill-down handles those)
+            // Great Kanto 1923: ~105K / 3.4M ≈ 1 in 32 (unreinforced masonry era)
+            // Turkey 2023: ~50K / 14M ≈ 1 in 280 (modern mixed city)
+            // Japan 2011: ~19K / 1M worst zone ≈ 1 in 52 (well-built + tsunami combined)
+            const table = {
+                1900:28, 1920:33, 1940:42, 1950:50, 1960:58,
+                1970:68, 1980:78, 1990:90, 2000:105, 2010:118,
+                2015:125, 2020:130, 2025:135, 2030:145,
+            };
+            return interpolate(table, year, 100);
+        },
+        context(year, odds) {
+            return `In ${year}, if a major earthquake (M6.5+) strikes the urban area you're in, the base chance of death is roughly 1 in ${Math.round(odds)}. This varies enormously — Haiti 2010 (unreinforced masonry) was ~1 in 14; Japan 2011 (modern buildings) was ~1 in 52. Building type is the single biggest factor.`;
+        },
+        deepenCategories: [
+            {
+                id: 'magnitude', name: 'Magnitude', icon: '📊',
+                question: 'What is the earthquake\'s magnitude?',
+                options: [
+                    { label: 'M5.0–5.9  (moderate)',  mult: 0.25, note: 'Rarely fatal in modern buildings; can kill in weak structures' },
+                    { label: 'M6.0–6.4  (strong)',    mult: 0.55, note: 'Destructive near epicentre; significant damage possible' },
+                    { label: 'M6.5–6.9  (strong)',    mult: 1.00, note: 'Baseline — major urban damage likely' },
+                    { label: 'M7.0–7.9  (major)',     mult: 2.20, note: 'Wide-area destruction; thousands of km² affected' },
+                    { label: 'M8.0+     (great)',     mult: 4.50, note: 'Catastrophic; can affect entire countries (e.g. 2010 Haiti)' },
+                ]
+            },
+            {
+                id: 'building', name: 'Building Type', icon: '🏗️',
+                question: 'What type of building are you in?',
+                options: [
+                    { label: 'Modern steel/RC frame (post-2000 code)', mult: 0.18, note: 'Designed to absorb seismic energy; very low collapse risk' },
+                    { label: 'Older reinforced concrete (pre-1990)',   mult: 0.70, note: 'Seismic codes less stringent; "soft storey" collapse risk' },
+                    { label: 'Wood-frame house',                       mult: 0.45, note: 'Flexible; tends to survive better than masonry' },
+                    { label: 'Unreinforced brick / masonry',          mult: 1.80, note: 'Extremely dangerous — responsible for most earthquake deaths' },
+                    { label: 'Adobe / earthen construction',          mult: 2.50, note: 'Catastrophic failure; common in rural developing regions' },
+                    { label: 'Outdoors / open ground',               mult: 0.35, note: 'Away from collapsing structures — best option in a quake' },
+                ]
+            },
+            {
+                id: 'preparedness', name: 'Local Preparedness', icon: '🌍',
+                question: 'How earthquake-prepared is the local area?',
+                options: [
+                    { label: 'Japan',              mult: 0.15, note: 'World leader — strict codes, trained population, early warning' },
+                    { label: 'New Zealand / USA (California)', mult: 0.25, note: 'Modern codes, practiced drills, good emergency response' },
+                    { label: 'Italy / Greece / Chile', mult: 0.55, note: 'Good awareness; older buildings still prevalent' },
+                    { label: 'Iran / Turkey',      mult: 0.90, note: 'High seismicity; enforcement of codes is inconsistent' },
+                    { label: 'Nepal / Pakistan',   mult: 1.40, note: 'Himalayan seismic zone; vast rural unreinforced building stock' },
+                    { label: 'Haiti / rural developing world', mult: 2.80, note: 'Virtually no seismic code compliance; near-total collapse risk' },
+                ]
+            },
+            {
+                id: 'time', name: 'Time of Day', icon: '🕐',
+                question: 'What time does the earthquake strike?',
+                options: [
+                    { label: 'Midday (people outdoors / at work)',   mult: 0.80, note: 'Many people away from their most vulnerable buildings' },
+                    { label: 'Rush hour (commuting)',                mult: 0.90, note: 'Bridge and overpass collapse risk increases' },
+                    { label: 'Night (2–6 AM, most people asleep)',   mult: 1.35, note: 'Trapped in bed under collapsed roof — higher fatality' },
+                    { label: 'School / work hours (high occupancy)', mult: 1.10, note: 'Dense occupancy means higher total casualties' },
+                ]
+            },
+        ]
+    },
+
+    hurricane: {
+        id: 'hurricane',
+        name: 'Hurricane / Cyclone',
+        emoji: '🌀',
+        unit: 'hurricane event',
+        yearRange: [1900, 2035],
+        getBaseOdds(year) {
+            // Odds of dying if in direct path (~80 km) of a landfalling major hurricane
+            // 1900 Galveston: ~8,000–12,000 dead / ~37,000 in path ≈ 1 in 4–5 (no warning)
+            // 1970 Bhola cyclone Bangladesh: ~500K dead / 3M in path ≈ 1 in 6
+            // Katrina 2005: ~1,800 dead / 1.5M in path ≈ 1 in 833
+            const table = {
+                1900:5,  1910:6,  1920:8,  1930:12, 1940:18,
+                1950:30, 1960:55, 1970:90, 1980:200, 1990:380,
+                2000:520, 2005:430, 2010:580, 2015:670, 2020:730,
+                2025:780, 2030:850,
+            };
+            return interpolate(table, year, 500);
+        },
+        context(year, odds) {
+            return `In ${year}, if you are in the direct path of a landfalling major hurricane, the base chance of death is roughly 1 in ${Math.round(odds)}. The 1900 Galveston hurricane killed roughly 1 in 4–5 people in its direct path with zero warning. Modern forecasting and mandatory evacuations have transformed survival rates.`;
+        },
+        deepenCategories: [
+            {
+                id: 'category', name: 'Storm Category', icon: '💨',
+                question: 'What category is the hurricane?',
+                options: [
+                    { label: 'Cat 1 — 74–95 mph winds',    mult: 0.20, note: 'Dangerous but rarely directly fatal; wind damage and flooding' },
+                    { label: 'Cat 2 — 96–110 mph winds',   mult: 0.45, note: 'Extremely dangerous; roof and tree failure risk' },
+                    { label: 'Cat 3 — 111–129 mph winds',  mult: 0.85, note: 'Major damage; storm surge begins to be catastrophic' },
+                    { label: 'Cat 4 — 130–156 mph winds',  mult: 1.80, note: 'Catastrophic structural damage; storm surge often fatal' },
+                    { label: 'Cat 5 — 157+ mph winds',     mult: 3.20, note: 'Total destruction near landfall; survival depends on shelter' },
+                ]
+            },
+            {
+                id: 'evacuation', name: 'Evacuation Status', icon: '🚨',
+                question: 'Did you evacuate?',
+                options: [
+                    { label: 'Evacuated early (2+ days before)',   mult: 2.50, note: 'Well out of storm path — risk drops to near baseline' },
+                    { label: 'Evacuated late (hours before)',      mult: 1.40, note: 'May be caught in traffic during the storm' },
+                    { label: 'Sheltered in a sturdy inland building', mult: 0.90, note: 'Wind-risk low; inland flooding still a risk' },
+                    { label: 'Sheltered in a coastal home',        mult: 0.45, note: 'Storm surge is the primary hurricane killer' },
+                    { label: 'Stayed in mobile home or RV',        mult: 0.10, note: 'Mobile homes are death traps in any Cat 2+ storm' },
+                    { label: 'Ignored warnings, on the coast',     mult: 0.06, note: 'Storm surge + wind = extremely high fatality risk' },
+                ]
+            },
+            {
+                id: 'surge', name: 'Storm Surge Zone', icon: '🌊',
+                question: 'Are you in a storm surge zone?',
+                options: [
+                    { label: 'Zone A — directly on the coast',     mult: 0.30, note: 'Storm surge can reach 15–20 ft; most hurricane deaths here' },
+                    { label: 'Zone B — within 1 mile of coast',    mult: 0.55, note: 'Significant surge risk with major storms' },
+                    { label: 'Zone C — 1–3 miles inland',          mult: 0.85, note: 'Surge possible in Cat 4–5 events' },
+                    { label: 'Inland / no surge risk',             mult: 1.80, note: 'Inland flooding and tornadoes are now the main risks' },
+                ]
+            },
+            {
+                id: 'region', name: 'Region', icon: '🗺️',
+                question: 'Where is the hurricane making landfall?',
+                options: [
+                    { label: 'USA (Florida, Gulf Coast, Carolinas)', mult: 1.00, note: 'Excellent forecasting; mandatory evacuations enforced' },
+                    { label: 'Japan / Philippines (typhoon)',         mult: 0.85, note: 'High preparedness; well-drilled evacuation systems' },
+                    { label: 'Caribbean islands',                    mult: 0.70, note: 'Older housing stock; limited evacuation options on islands' },
+                    { label: 'Mexico / Central America',             mult: 0.60, note: 'Improving but enforcement and infrastructure vary' },
+                    { label: 'Bangladesh / Myanmar (cyclone)',       mult: 0.35, note: 'Dense coastal populations; improving since Bhola 1970' },
+                    { label: 'Bay of Bengal / India',               mult: 0.50, note: 'Cyclone shelters have saved millions, but gaps remain' },
+                ]
+            },
+        ]
+    },
+
+    tornado: {
+        id: 'tornado',
+        name: 'Tornado',
+        emoji: '🌪️',
+        unit: 'tornado event',
+        yearRange: [1950, 2035],
+        getBaseOdds(year) {
+            // Odds of dying if a tornado passes within ~500m of your location
+            // ~70–80 US deaths/year; ~25M in tornado-prone areas ≈ very low per-person
+            // But per-event (given the tornado is on you): ~1 in 200 in its path
+            const table = {
+                1950:80, 1960:90, 1970:110, 1980:130, 1990:160,
+                2000:200, 2010:240, 2015:260, 2020:280, 2025:300, 2030:330,
+            };
+            return interpolate(table, year, 200);
+        },
+        context(year, odds) {
+            return `In ${year}, if a tornado passes close to your location, the chance of death is roughly 1 in ${Math.round(odds)}. Doppler radar and the NWS warning system have given Americans an average 13-minute warning — crucial for survival.`;
+        },
+        deepenCategories: [
+            {
+                id: 'rating', name: 'Tornado Strength (EF Scale)', icon: '💨',
+                question: 'How strong is the tornado?',
+                options: [
+                    { label: 'EF0 — 65–85 mph (weak)',        mult: 0.12, note: 'Mostly property damage; rarely fatal to people indoors' },
+                    { label: 'EF1 — 86–110 mph',              mult: 0.30, note: 'Mobile homes and cars become dangerous' },
+                    { label: 'EF2 — 111–135 mph (significant)', mult: 0.80, note: 'Roofs torn off; significant structural damage' },
+                    { label: 'EF3 — 136–165 mph (severe)',    mult: 1.80, note: 'Well-built homes demolished; cars thrown' },
+                    { label: 'EF4 — 166–200 mph (devastating)', mult: 3.50, note: 'Few structures survive; catastrophic destruction' },
+                    { label: 'EF5 — 200+ mph (incredible)',   mult: 6.00, note: 'Total destruction; survival almost entirely shelter-dependent' },
+                ]
+            },
+            {
+                id: 'shelter', name: 'Shelter Type', icon: '🏠',
+                question: 'Where are you sheltering?',
+                options: [
+                    { label: 'Underground storm cellar / bunker', mult: 3.50, note: 'Best possible protection — even EF5 survivable' },
+                    { label: 'Interior room, lowest floor (no windows)', mult: 1.80, note: 'Standard tornado safety advice; very effective for EF0–3' },
+                    { label: 'Bathtub / under stairs (solid house)', mult: 1.40, note: 'Some protection; better than nothing' },
+                    { label: 'Ground floor of brick/concrete building', mult: 1.00, note: 'Baseline — depends heavily on tornado strength' },
+                    { label: 'In a car',                       mult: 0.35, note: 'Cars are frequently thrown; leaving may be better than staying' },
+                    { label: 'Mobile home or trailer',         mult: 0.14, note: 'Mobile homes account for disproportionate tornado deaths' },
+                    { label: 'Outdoors in the open',          mult: 0.20, note: 'Lay flat in a ditch — only option if no shelter nearby' },
+                ]
+            },
+            {
+                id: 'warning', name: 'Warning Received', icon: '📻',
+                question: 'How much warning did you get?',
+                options: [
+                    { label: '15+ minutes warning',      mult: 2.20, note: 'Enough time to reach a proper shelter or leave the area' },
+                    { label: '5–15 minutes warning',     mult: 1.50, note: 'US average; enough to get to interior room or cellar' },
+                    { label: '1–5 minutes warning',      mult: 0.85, note: 'Barely enough — grab the lowest interior point available' },
+                    { label: 'No warning at all',        mult: 0.30, note: 'Nighttime or rapidly-forming tornadoes; highest death rate' },
+                ]
+            },
+        ]
+    },
+
+    wildfire: {
+        id: 'wildfire',
+        name: 'Wildfire / Bushfire',
+        emoji: '🔥',
+        unit: 'wildfire event',
+        yearRange: [1950, 2035],
+        getBaseOdds(year) {
+            // Per-event odds if you're in an active evacuation zone
+            // Camp Fire 2018: 85 dead / ~27,000 in danger ≈ 1 in 318
+            // Black Saturday 2009 AUS: 173 dead / ~10,000 in path ≈ 1 in 58
+            // Modern: growing risk due to climate change
+            const table = {
+                1950:1200, 1960:1100, 1970:1000, 1980:900, 1990:800,
+                2000:700, 2010:600, 2015:500, 2018:400, 2020:380,
+                2022:370, 2025:360, 2030:340,
+            };
+            return interpolate(table, year, 500);
+        },
+        context(year, odds) {
+            return `In ${year}, if an active wildfire is encroaching on your area, the base chance of death is roughly 1 in ${Math.round(odds)}. Wildfires are accelerating globally — area burned has doubled in the western US since the 1980s.`;
+        },
+        deepenCategories: [
+            {
+                id: 'evacuation', name: 'Evacuation Status', icon: '🚗',
+                question: 'Have you evacuated?',
+                options: [
+                    { label: 'Evacuated well before the fire arrived', mult: 3.50, note: 'The single most effective survival action' },
+                    { label: 'Evacuating now (fire approaching)',       mult: 1.20, note: 'Embers can travel 1.5 km ahead of the fire front' },
+                    { label: 'Shelter-in-place in a well-prepared home', mult: 0.75, note: 'Ash and embers, not the flame front, kill most victims' },
+                    { label: 'Shelter-in-place in an unprepared home', mult: 0.25, note: 'Vegetation up to the house is a fatal mistake' },
+                    { label: 'Trapped — no evacuation route',          mult: 0.12, note: '63 of 85 Camp Fire victims died trying to flee by car' },
+                ]
+            },
+            {
+                id: 'proximity', name: 'Distance from Fire Front', icon: '📏',
+                question: 'How close is the fire front?',
+                options: [
+                    { label: '5+ km away',      mult: 2.50, note: 'Smoke is the hazard here — not the flame' },
+                    { label: '2–5 km away',     mult: 1.50, note: 'Embers can travel this distance in wind' },
+                    { label: '500 m – 2 km',    mult: 0.70, note: 'Radiant heat and ember storm become life-threatening' },
+                    { label: 'Under 500 m',     mult: 0.20, note: 'Radiant heat alone can be fatal at this range' },
+                    { label: 'Fire is upon you', mult: 0.05, note: 'Survival depends entirely on having a fire shelter or water' },
+                ]
+            },
+            {
+                id: 'wind', name: 'Wind Conditions', icon: '🌬️',
+                question: 'What are the wind conditions?',
+                options: [
+                    { label: 'Calm / light winds (< 15 mph)',   mult: 1.80, note: 'Fire moves slowly; evacuation windows remain open' },
+                    { label: 'Moderate winds (15–30 mph)',      mult: 1.00, note: 'Baseline; fire can spread faster than a person can run' },
+                    { label: 'Strong winds (30–50 mph)',        mult: 0.55, note: 'Embers travel far; fire direction unpredictable' },
+                    { label: 'Extreme winds (50+ mph)',         mult: 0.25, note: 'Firestorm conditions; fire can outrun vehicles on winding roads' },
+                ]
+            },
+            {
+                id: 'terrain', name: 'Terrain & Vegetation', icon: '🌲',
+                question: 'What is the terrain and vegetation like?',
+                options: [
+                    { label: 'Cleared land / minimal fuel load',          mult: 2.20, note: 'Little to burn around you' },
+                    { label: 'Grassland / low scrub',                     mult: 1.20, note: 'Fast-moving fire but passes quickly' },
+                    { label: 'Mixed woodland / residential interface',    mult: 0.80, note: 'WUI zone — most wildfire deaths occur here' },
+                    { label: 'Dense conifer forest (pine, fir)',          mult: 0.50, note: 'Crown fire risk; extreme intensity and spread' },
+                    { label: 'Steep hillside / canyon (fire runs uphill)', mult: 0.30, note: 'Fire travels up slopes up to 4× faster than flat terrain' },
+                ]
+            },
+        ]
+    },
+
+    volcano: {
+        id: 'volcano',
+        name: 'Volcanic Eruption',
+        emoji: '🌋',
+        unit: 'eruption event',
+        yearRange: [1800, 2035],
+        getBaseOdds(year) {
+            // Odds of dying if within 20 km of an erupting volcano (no drill-down filters yet)
+            // Pre-1900 (Tambora, Krakatoa era): within 20 km with no warning = near-certain death
+            // Tambora 1815: ~70,000 dead in immediate area; survival within 20 km near zero
+            // Mt St Helens 1980: 57 dead / ~800 who stayed in exclusion zone ≈ 1 in 14
+            // Pinatubo 1991: ~850 dead / ~200K evacuated — those who stayed: ~1 in 12
+            // Modern (with monitoring & evacuation): ~1 in 80–110
+            const table = {
+                1800:3,  1850:4,  1880:5,  1900:6,  1920:8,
+                1940:10, 1950:13, 1960:17, 1970:22, 1980:26,
+                1990:40, 2000:58, 2010:75, 2020:88, 2025:95, 2030:110,
+            };
+            return interpolate(table, year, 50);
+        },
+        context(year, odds) {
+            return `In ${year}, if you are within 20 km of an actively erupting volcano, the base chance of death is roughly 1 in ${Math.round(odds)}. Before modern monitoring, Tambora (1815) and Krakatoa (1883) killed virtually everyone within this range. Pyroclastic flows travel at up to 700 km/h — evacuation is the only effective defence.`;
+        },
+        deepenCategories: [
+            {
+                id: 'hazard', name: 'Primary Hazard', icon: '💥',
+                question: 'What is the main volcanic hazard reaching you?',
+                options: [
+                    { label: 'Lava flow (effusive eruption)',          mult: 0.18, note: 'Slow-moving; deadly if trapped, but usually escapable' },
+                    { label: 'Volcanic ash fall (heavy)',              mult: 0.55, note: 'Roof collapse, respiratory failure; highly dangerous' },
+                    { label: 'Volcanic gases (SO₂, CO₂ cloud)',       mult: 0.40, note: 'Invisible CO₂ sinks in hollows; killed many at Lake Nyos 1986' },
+                    { label: 'Lahar (volcanic mudflow)',               mult: 0.50, note: 'Can travel at 60 mph; buries towns hours after eruption' },
+                    { label: 'Pyroclastic surge (ground-hugging cloud)', mult: 0.12, note: '200–700°C at 300 km/h — survival essentially impossible' },
+                    { label: 'Pyroclastic flow (dense flow)',          mult: 0.06, note: 'Pompeii 79 AD — fastest and deadliest volcanic hazard' },
+                ]
+            },
+            {
+                id: 'distance', name: 'Distance from Vent', icon: '📏',
+                question: 'How far are you from the volcanic vent?',
+                options: [
+                    { label: 'Under 3 km',    mult: 0.04, note: 'Immediate kill zone for virtually all eruption types' },
+                    { label: '3–10 km',       mult: 0.20, note: 'Pyroclastic flows and surges still reach here' },
+                    { label: '10–20 km',      mult: 0.60, note: 'Outside pyroclastic range for most eruptions; ash and lahars remain' },
+                    { label: '20–50 km',      mult: 1.40, note: 'Ash, projectiles, and lahars are still real risks' },
+                    { label: '50+ km away',   mult: 3.50, note: 'Only heavy ash fall or gas cloud is a danger' },
+                ]
+            },
+            {
+                id: 'evacuation', name: 'Evacuation Status', icon: '🚨',
+                question: 'Were you evacuated in advance?',
+                options: [
+                    { label: 'Fully evacuated before eruption',       mult: 4.00, note: 'Pinatubo 1991 saved ~20,000 lives through evacuation' },
+                    { label: 'Evacuating during early eruption phase', mult: 1.80, note: 'Viable for most eruption types except pyroclastic' },
+                    { label: 'Sheltering in a solid building',        mult: 0.70, note: 'Protects from ash; useless against pyroclastic flows' },
+                    { label: 'Refused to evacuate',                   mult: 0.25, note: 'Harry Truman refused to leave Mt St Helens — did not survive' },
+                    { label: 'Evacuation route cut off',              mult: 0.20, note: 'Lava, lahar, or ashfall blocking all exits' },
+                ]
+            },
+        ]
+    },
+
+    lightning: {
+        id: 'lightning',
+        name: 'Lightning Strike',
+        emoji: '⚡',
+        unit: 'thunderstorm exposure',
+        yearRange: [1950, 2035],
+        getBaseOdds(year) {
+            // Odds of dying per hour of outdoor exposure during an active thunderstorm
+            // The physics of a lightning strike killing you hasn't changed — what's changed is behaviour
+            // (more people now go indoors, fewer work in open fields)
+            // NOAA estimate: ~1 in 700,000 per outdoor storm-hour (modern, average activity)
+            // Pre-1980 people spent more time outdoors (farming, no air conditioning) ≈ similar per-hour risk
+            // The curve is intentionally flat — behaviour change is captured in the drill-down
+            const table = {
+                1950:480000, 1960:500000, 1970:520000, 1980:540000,
+                1990:570000, 2000:600000, 2010:640000, 2015:670000,
+                2020:700000, 2025:720000, 2030:750000,
+            };
+            return interpolate(table, year, 600000);
+        },
+        context(year, odds) {
+            return `In ${year}, the chance of dying per hour of outdoor thunderstorm exposure is roughly 1 in ${Math.round(odds).toLocaleString()}. Lightning kills ~2,000 people globally each year. Critically, 90% of strike victims survive — but the odds shift dramatically based on what you're doing and where you are.`;
+        },
+        deepenCategories: [
+            {
+                id: 'activity', name: 'Activity', icon: '🏃',
+                question: 'What are you doing?',
+                options: [
+                    { label: 'Indoors in a solid building',   mult: 4.00, note: 'Effectively removes almost all lightning risk' },
+                    { label: 'In a car (metal roof)',         mult: 3.50, note: 'Faraday cage effect — one of the safest places' },
+                    { label: 'Open field / standing',         mult: 0.65, note: 'Tallest object in flat terrain — high strike risk' },
+                    { label: 'Golf (carrying metal clubs)',   mult: 0.40, note: 'Golfers account for a disproportionate share of fatalities' },
+                    { label: 'Mountain hiking / summit',      mult: 0.30, note: 'Elevated, exposed, often the highest point in area' },
+                    { label: 'Under a lone tree',             mult: 0.20, note: 'Classic mistake — ground current from tree strikes is fatal' },
+                    { label: 'Swimming / in open water',      mult: 0.18, note: 'Lighting travels through water efficiently' },
+                    { label: 'On a boat / sailing',           mult: 0.22, note: 'Tall mast is a lightning rod; water surrounds you' },
+                ]
+            },
+            {
+                id: 'storm', name: 'Storm Intensity', icon: '⛈️',
+                question: 'How intense is the storm?',
+                options: [
+                    { label: 'Distant storm — just thunder, no rain yet', mult: 0.55, note: '"When thunder roars, go indoors" — strikes can be miles ahead' },
+                    { label: 'Moderate storm overhead',                   mult: 1.00, note: 'Baseline — typical active thunderstorm' },
+                    { label: 'Severe thunderstorm (frequent strikes)',    mult: 1.80, note: 'Active cumulonimbus — strike rate increases dramatically' },
+                    { label: 'Supercell / extreme storm',                mult: 2.50, note: 'Continuous lightning; open exposure is very dangerous' },
+                ]
+            },
+            {
+                id: 'terrain', name: 'Terrain', icon: '🌄',
+                question: 'What terrain are you on?',
+                options: [
+                    { label: 'Flat urban area with buildings nearby', mult: 1.50, note: 'Buildings provide nearby shelter option' },
+                    { label: 'Flat open rural land',                  mult: 0.75, note: 'You may be the tallest point — high risk' },
+                    { label: 'Dense forest (not under single trees)', mult: 1.20, note: 'Ground current from nearby strikes; avoid single trees' },
+                    { label: 'Mountain / exposed ridge',              mult: 0.40, note: 'Highest exposure; afternoon storms hit fast in alpine zones' },
+                    { label: 'Near water (lake, river, sea)',         mult: 0.55, note: 'Step and touch potential from ground current' },
+                ]
+            },
+        ]
+    },
+
+};
+
+// ═══════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════
+
+function interpolate(table, year, fallback) {
+    const keys = Object.keys(table).map(Number).sort((a, b) => a - b);
+    if (year <= keys[0]) return Math.round(table[keys[0]] * Math.pow(0.94, keys[0] - year));
+    if (year >= keys[keys.length - 1]) return table[keys[keys.length - 1]];
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (year >= keys[i] && year <= keys[i + 1]) {
+            const t = (year - keys[i]) / (keys[i + 1] - keys[i]);
+            return Math.round(table[keys[i]] * (1 - t) + table[keys[i + 1]] * t);
+        }
+    }
+    return fallback;
+}
+
+function fmtOdds(n) {
+    n = Math.round(n);
+    if (n >= 1_000_000) return `1 in ${(n / 1_000_000).toFixed(n >= 5_000_000 ? 0 : 1)}M`;
+    if (n >= 10_000)    return `1 in ${Math.round(n / 1_000)}K`;
+    return `1 in ${n.toLocaleString()}`;
+}
+
+function riskBadge(odds, id) {
+    const scales = {
+        // Activities
+        skiing:     [[50_000,'Extreme'],[100_000,'High'],[200_000,'Moderate'],[300_000,'Low'],[Infinity,'Very Low']],
+        plane:      [[500_000,'Dangerous'],[1_500_000,'Elevated'],[3_000_000,'Low'],[6_000_000,'Very Low'],[Infinity,'Ultra Low']],
+        car:        [[5_000,'Extreme'],[10_000,'High'],[18_000,'Moderate'],[25_000,'Low'],[Infinity,'Very Low']],
+        motorcycle: [[500,'Extreme'],[900,'Very High'],[1_500,'High'],[2_200,'Moderate'],[Infinity,'Lower']],
+        swimming:   [[20_000,'High'],[50_000,'Moderate'],[90_000,'Low'],[Infinity,'Very Low']],
+        climbing:   [[100,'Extreme'],[300,'Very High'],[700,'High'],[1_200,'Moderate'],[Infinity,'Lower']],
+        // Natural disasters
+        tsunami:    [[6,'Catastrophic'],[10,'Extreme'],[18,'Very High'],[30,'High'],[Infinity,'Moderate']],
+        earthquake: [[20,'Catastrophic'],[50,'Extreme'],[100,'Very High'],[200,'High'],[Infinity,'Moderate']],
+        hurricane:  [[8,'Catastrophic'],[30,'Extreme'],[150,'Very High'],[500,'High'],[Infinity,'Moderate']],
+        tornado:    [[80,'Extreme'],[150,'Very High'],[280,'High'],[450,'Moderate'],[Infinity,'Lower']],
+        wildfire:   [[100,'Extreme'],[250,'Very High'],[500,'High'],[1_000,'Moderate'],[Infinity,'Lower']],
+        volcano:    [[5,'Catastrophic'],[15,'Extreme'],[40,'Very High'],[90,'High'],[Infinity,'Moderate']],
+        lightning:  [[300_000,'Moderate'],[500_000,'Low'],[700_000,'Very Low'],[Infinity,'Ultra Low']],
+    };
+    for (const [thresh, label] of (scales[id] || scales.car)) {
+        if (odds < thresh) return label;
+    }
+    return 'Low';
+}
+
+// ═══════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════
+
+let state = {
+    page: 0,   // 0 = activities, 1 = natural disasters
+    screen: 'home',
+    scenarioId: null,
+    year: null,
+    currentOdds: null,
+    filtersApplied: [],
+    remainingCatIds: [],
+    pendingCatId: null,
+};
+
+function resetState() {
+    const pg = state.page;
+    state = { page: pg, screen: 'home', scenarioId: null, year: null, currentOdds: null, filtersApplied: [], remainingCatIds: [], pendingCatId: null };
+}
+
+function getScenarios() {
+    return state.page === 0 ? SCENARIOS : DISASTER_SCENARIOS;
+}
+
+function changePage(pg) {
+    state.page = pg;
+    state.screen = 'home';
+    state.scenarioId = null;
+    render();
+}
+
+// ═══════════════════════════════════════════════════════
+// ACTIONS
+// ═══════════════════════════════════════════════════════
+
+function act(type, payload) {
+    const s = getScenarios()[state.scenarioId];
+    switch (type) {
+        case 'SELECT_SCENARIO':
+            state.scenarioId = payload;
+            state.screen = 'year';
+            break;
+        case 'SUBMIT_YEAR': {
+            const yr = payload;
+            const sc = getScenarios()[state.scenarioId];
+            state.year = yr;
+            state.currentOdds = sc.getBaseOdds(yr);
+            state.filtersApplied = [];
+            state.remainingCatIds = sc.deepenCategories.map(c => c.id);
+            state.screen = 'stats';
+            break;
+        }
+        case 'GO_HOME':
+            resetState();
+            break;
+        case 'GO_DEEPER':
+            state.screen = 'pickCategory';
+            break;
+        case 'PICK_CATEGORY':
+            state.pendingCatId = payload;
+            state.screen = 'pickOption';
+            break;
+        case 'SELECT_OPTION': {
+            const cat = s.deepenCategories.find(c => c.id === state.pendingCatId);
+            const opt = cat.options[payload];
+            state.currentOdds = Math.round(state.currentOdds / opt.mult);
+            state.filtersApplied.push({ catName: cat.name, optLabel: opt.label });
+            state.remainingCatIds = state.remainingCatIds.filter(id => id !== state.pendingCatId);
+            state.pendingCatId = null;
+            state.screen = 'stats';
+            break;
+        }
+        case 'BACK_TO_STATS':
+            state.screen = 'stats';
+            break;
+        case 'BACK_TO_PICK':
+            state.screen = 'pickCategory';
+            break;
+    }
+    render();
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════
+
+function render() {
+    document.getElementById('app').innerHTML = {
+        home:         renderHome,
+        year:         renderYear,
+        stats:        renderStats,
+        pickCategory: renderPickCategory,
+        pickOption:   renderPickOption,
+    }[state.screen]();
+
+}
+
+function renderHome() {
+    const isDisasters = state.page === 1;
+    const cards = Object.values(getScenarios()).map(sc => `
+        <button class="scenario-btn" onclick="act('SELECT_SCENARIO','${sc.id}')">
+            <span class="s-emoji">${sc.emoji}</span>
+            <span class="s-name">${sc.name}</span>
+        </button>
+    `).join('');
+    return `
+        <div class="screen">
+            <div class="page-tabs">
+                <button class="page-tab ${!isDisasters ? 'active' : ''}" onclick="changePage(0)">☠️ Activities</button>
+                <button class="page-tab ${isDisasters ? 'active' : ''}" onclick="changePage(1)">🌪️ Natural Disasters</button>
+            </div>
+            <div class="title" style="margin-bottom:24px">
+                <h1>${isDisasters ? 'Natural Disasters' : 'Chance of Death'}</h1>
+                <p>${isDisasters ? 'If it strikes where you are — what are your odds?' : 'Discover your real statistical odds — then dig deeper'}</p>
+            </div>
+            <div class="card">
+                <div class="section-label">Choose a scenario</div>
+                <div class="scenario-grid">${cards}</div>
+            </div>
+            <p class="disclaimer">Figures are approximate, based on published safety research. Educational use only.</p>
+        </div>
+    `;
+}
+
+function renderYear() {
+    const sc = getScenarios()[state.scenarioId];
+    const now = new Date().getFullYear();
+    return `
+        <div class="screen">
+            <button class="back-btn" onclick="act('GO_HOME')">← Back</button>
+            <div style="text-align:center;font-size:3rem;margin-bottom:14px">${sc.emoji}</div>
+            <div class="card">
+                <div class="question-title">${
+                    sc.id === 'plane'       ? 'What year are you flying?' :
+                    sc.id === 'swimming'    ? 'What year are you swimming?' :
+                    sc.id === 'climbing'    ? 'What year are you climbing?' :
+                    sc.id === 'skiing'      ? 'What year are you hitting the slopes?' :
+                    sc.id === 'motorcycle'  ? 'What year are you riding?' :
+                    sc.id === 'car'         ? 'What year are you driving?' :
+                    'What year does the event occur?'
+                }</div>
+                <p style="color:var(--muted);font-size:0.88rem;margin-bottom:18px">Enter any year from ${sc.yearRange[0]} to ${sc.yearRange[1]} for historical or projected data.</p>
+                <input type="number" id="yrIn" min="${sc.yearRange[0]}" max="${sc.yearRange[1]}" value="${now}" />
+                <button class="btn btn-primary" style="margin-top:14px" onclick="submitYear()">Calculate My Odds →</button>
+            </div>
+        </div>
+    `;
+}
+
+function submitYear() {
+    const sc = getScenarios()[state.scenarioId];
+    const val = parseInt(document.getElementById('yrIn').value);
+    if (isNaN(val) || val < sc.yearRange[0] || val > sc.yearRange[1]) {
+        const el = document.getElementById('yrIn');
+        el.classList.add('error');
+        el.placeholder = `Year must be ${sc.yearRange[0]}–${sc.yearRange[1]}`;
+        el.value = '';
+        return;
+    }
+    act('SUBMIT_YEAR', val);
+}
+
+function renderStats() {
+    const sc   = getScenarios()[state.scenarioId];
+    const odds = state.currentOdds;
+    const risk = riskBadge(odds, sc.id);
+    const canDeepen = state.remainingCatIds.length > 0;
+
+    const tags = state.filtersApplied.map(f =>
+        `<span class="filter-tag">${f.catName}: ${f.optLabel}</span>`
+    ).join('');
+
+    return `
+        <div class="screen">
+            ${state.filtersApplied.length ? `<div class="filter-tags">${tags}</div>` : ''}
+            <div class="stat-display">
+                <div class="stat-label">Chance of death per ${sc.unit} in ${state.year}</div>
+                <div class="stat-odds">${fmtOdds(odds)}</div>
+                <div class="stat-risk">Risk level: <strong>${risk}</strong></div>
+                <div class="stat-context">${sc.context(state.year, odds)}</div>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-ghost" onclick="act('GO_HOME')">✓ Happy with answer</button>
+                ${canDeepen
+                    ? `<button class="btn btn-primary" onclick="act('GO_DEEPER')">Go Deeper →</button>`
+                    : `<button class="btn btn-disabled" disabled>No more filters</button>`
+                }
+            </div>
+        </div>
+    `;
+}
+
+function renderPickCategory() {
+    const sc = getScenarios()[state.scenarioId];
+    const cats = state.remainingCatIds.map(id => sc.deepenCategories.find(c => c.id === id));
+    const btns = cats.map(cat => `
+        <button class="cat-btn" onclick="act('PICK_CATEGORY','${cat.id}')">
+            <span>
+                <span class="cat-icon">${cat.icon}</span>
+                <span class="cat-name">${cat.name}</span>
+            </span>
+            <div class="cat-q">${cat.question}</div>
+        </button>
+    `).join('');
+    return `
+        <div class="screen">
+            <button class="back-btn" onclick="act('BACK_TO_STATS')">← Back to Stats</button>
+            <div class="card">
+                <div class="section-label">Refine your odds by...</div>
+                ${btns}
+            </div>
+        </div>
+    `;
+}
+
+function renderPickOption() {
+    const sc  = getScenarios()[state.scenarioId];
+    const cat = sc.deepenCategories.find(c => c.id === state.pendingCatId);
+    const isLong = cat.options.length > 10;
+
+    const btns = cat.options.map((opt, i) => `
+        <button class="opt-btn" data-search="${opt.label.toLowerCase()}" onclick="act('SELECT_OPTION',${i})">
+            <strong>${opt.label}</strong>
+            <span>${opt.note}</span>
+        </button>`).join('');
+
+    const searchBox = isLong ? `
+        <input type="text" id="optSearch"
+            placeholder="Type to search countries…"
+            oninput="filterOpts(this.value)"
+            autocomplete="off"
+            style="width:100%;padding:11px 15px;background:var(--card2);border:1px solid var(--border);
+                   border-radius:8px;color:var(--text);font-size:0.95rem;outline:none;
+                   margin-bottom:14px;transition:border-color 0.18s;display:block"
+            onfocus="this.style.borderColor='var(--accent)'"
+            onblur="this.style.borderColor='var(--border)'"
+        >
+        <p id="noMatch" style="display:none;color:var(--muted);font-size:0.88rem;padding:8px 0">
+            No countries matched — try a different spelling.
+        </p>` : '';
+
+    return `
+        <div class="screen">
+            <button class="back-btn" onclick="act('BACK_TO_PICK')">← Back</button>
+            <div class="card">
+                <div class="section-label">${cat.icon} ${cat.name}</div>
+                <div class="question-title" style="margin-bottom:14px">${cat.question}</div>
+                ${searchBox}
+                <div id="optList">${btns}</div>
+            </div>
+        </div>
+    `;
+}
+
+function filterOpts(query) {
+    const q = query.toLowerCase().trim();
+    let anyVisible = false;
+    document.querySelectorAll('#optList .opt-btn').forEach(btn => {
+        const match = !q || btn.dataset.search.includes(q);
+        btn.style.display = match ? '' : 'none';
+        if (match) anyVisible = true;
+    });
+    const noMatch = document.getElementById('noMatch');
+    if (noMatch) noMatch.style.display = anyVisible ? 'none' : '';
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>
