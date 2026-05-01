@@ -1221,7 +1221,7 @@ function drawBattleResult() {
       if(inBtn(185,365,160,50)) startBattle(battle.level);
       if(inBtn(455,365,160,50)) state='menu';
     }
-    if(battleResult.impossible) {
+    if(battleResult?.impossible) {
       ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
       ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
       ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
