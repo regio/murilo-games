@@ -729,6 +729,19 @@ function doSwitch(deckIdx) {
   }
 }
 
+function isBattleImpossible(levelIdx) {
+  const pCards = save.deck.map(id=>cardById(id)).filter(Boolean);
+  const eDefs  = buildEnemyDeck(levelIdx+1).map(id=>cardById(id)).filter(Boolean);
+  if(!pCards.length||!eDefs.length) return false;
+  const pDmg = pCards.reduce((s,c)=>s+c.dmg,0);
+  const pHp  = pCards.reduce((s,c)=>s+c.hp, 0);
+  const eDmg = eDefs.reduce((s,c)=>s+c.dmg,0);
+  const eHp  = eDefs.reduce((s,c)=>s+c.hp, 0);
+  const pTTK = Math.ceil(eHp / Math.max(1,pDmg));
+  const eTTK = Math.ceil(pHp / Math.max(1,eDmg));
+  return pTTK > eTTK * 2.5;
+}
+
 function endBattle(won) {
   const reward = won ? Math.floor(25+battle.level*3) : 0;
   if(won) {
@@ -736,7 +749,8 @@ function endBattle(won) {
     if(battle.level>=save.highestLevel) save.highestLevel=battle.level+1;
     persist();
   }
-  battleResult={won,moneyEarned:reward};
+  const impossible = !won && isBattleImpossible(battle.level);
+  battleResult={won,moneyEarned:reward,impossible};
   state='battle_result';
 }
 
@@ -1201,27 +1215,24 @@ function drawBattleResult() {
     ctx.fillStyle='#667788'; ctx.font='12px Courier New';
     ctx.fillText('Buy packs in SHOP, or rebuild deck in BUILD.',W/2,295);
 
-    const cheapest = Math.min(...Object.values(PACKS).map(p=>p.price));
-    const stuck = save.money < cheapest && save.cards.filter(id=>id!=='air').length === 0;
-    if(stuck) {
-      ctx.fillStyle='rgba(0,0,0,0.5)'; rr(160,330,480,52,10); ctx.fill();
-      ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(160,330,480,52,10); ctx.stroke(); ctx.lineWidth=1;
-      ctx.fillStyle='#ffcc44'; ctx.font='bold 14px Courier New'; ctx.textAlign='center';
-      ctx.fillText("Need help? You'll receive $200", W/2, 352);
+    drawBtn('RETRY',185,365,160,50,'#550000','#880000');
+    drawBtn('MENU', 455,365,160,50,'#222','#444');
+    if(clicked){
+      if(inBtn(185,365,160,50)) startBattle(battle.level);
+      if(inBtn(455,365,160,50)) state='menu';
+    }
+    if(battleResult.impossible) {
+      ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
+      ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
+      ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+      ctx.fillText('Your deck is too weak for this level — would you like help?', W/2, 452);
       ctx.fillStyle='#aa8800'; ctx.font='11px Courier New';
-      ctx.fillText('Looks like you\'re stuck — no cards and no money', W/2, 370);
-      drawBtn('YES, HELP ME',185,393,200,44,'#554400','#886600');
-      drawBtn('NO THANKS',   415,393,200,44,'#222','#444');
+      ctx.fillText('Accepting gives you $200 to buy stronger packs', W/2, 468);
+      drawBtn('YES (+$200)',145,492,200,40,'#554400','#886600');
+      drawBtn('NO THANKS', 455,492,200,40,'#222','#444');
       if(clicked){
-        if(inBtn(185,393,200,44)){save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
-        if(inBtn(415,393,200,44)){battleResult=null;state='menu';}
-      }
-    } else {
-      drawBtn('RETRY',185,365,160,50,'#550000','#880000');
-      drawBtn('MENU', 455,365,160,50,'#222','#444');
-      if(clicked){
-        if(inBtn(185,365,160,50)) startBattle(battle.level);
-        if(inBtn(455,365,160,50)) state='menu';
+        if(inBtn(145,492,200,40)){save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
+        if(inBtn(455,492,200,40)){battleResult=null;state='menu';}
       }
     }
   }
