@@ -355,8 +355,9 @@ const PACKS = {
 
 // ── Save data ────────────────────────────────────────────────────────────────
 let save = JSON.parse(localStorage.getItem('cardgame')||'null') || {
-  money:300, cards:[], deck:[], highestLevel:0
+  money:300, cards:[], deck:[], highestLevel:0, helpCount:0
 };
+if(save.helpCount===undefined) save.helpCount=0;
 function persist() { localStorage.setItem('cardgame', JSON.stringify(save)); }
 
 // ── State variables ──────────────────────────────────────────────────────────
@@ -1220,17 +1221,19 @@ function drawBattleResult() {
       if(inBtn(185,365,160,50)) startBattle(battle.level);
       if(inBtn(455,365,160,50)) state='menu';
     }
-    ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
-    ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
-    ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
-    ctx.fillText('Would you like help? (+$200 to spend on packs)', W/2, 452);
-    ctx.fillStyle='#aa8800'; ctx.font='11px Courier New';
-    ctx.fillText('Free money — no strings attached', W/2, 468);
-    drawBtn('YES (+$200)',145,492,200,40,'#554400','#886600');
-    drawBtn('NO THANKS', 455,492,200,40,'#222','#444');
-    if(clicked){
-      if(inBtn(145,492,200,40)){save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
-      if(inBtn(455,492,200,40)){battleResult=null;state='menu';}
+    if(save.helpCount<3){
+      ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
+      ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
+      ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+      ctx.fillText(`Would you like help? (+$200)  [${3-save.helpCount} left]`, W/2, 452);
+      ctx.fillStyle='#aa8800'; ctx.font='11px Courier New';
+      ctx.fillText('Free money — no strings attached', W/2, 468);
+      drawBtn('YES (+$200)',145,492,200,40,'#554400','#886600');
+      drawBtn('NO THANKS', 455,492,200,40,'#222','#444');
+      if(clicked){
+        if(inBtn(145,492,200,40)){save.helpCount++;save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
+        if(inBtn(455,492,200,40)){battleResult=null;state='menu';}
+      }
     }
   }
 }
