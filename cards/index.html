@@ -749,8 +749,7 @@ function endBattle(won) {
     if(battle.level>=save.highestLevel) save.highestLevel=battle.level+1;
     persist();
   }
-  const impossible = !won && isBattleImpossible(battle.level);
-  battleResult={won,moneyEarned:reward,impossible};
+  battleResult={won,moneyEarned:reward};
   state='battle_result';
 }
 
@@ -1221,19 +1220,17 @@ function drawBattleResult() {
       if(inBtn(185,365,160,50)) startBattle(battle.level);
       if(inBtn(455,365,160,50)) state='menu';
     }
-    if(battleResult?.impossible) {
-      ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
-      ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
-      ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
-      ctx.fillText('Your deck is too weak for this level — would you like help?', W/2, 452);
-      ctx.fillStyle='#aa8800'; ctx.font='11px Courier New';
-      ctx.fillText('Accepting gives you $200 to buy stronger packs', W/2, 468);
-      drawBtn('YES (+$200)',145,492,200,40,'#554400','#886600');
-      drawBtn('NO THANKS', 455,492,200,40,'#222','#444');
-      if(clicked){
-        if(inBtn(145,492,200,40)){save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
-        if(inBtn(455,492,200,40)){battleResult=null;state='menu';}
-      }
+    ctx.fillStyle='rgba(0,0,0,0.55)'; rr(120,430,560,56,10); ctx.fill();
+    ctx.strokeStyle='#886600'; ctx.lineWidth=1.5; rr(120,430,560,56,10); ctx.stroke(); ctx.lineWidth=1;
+    ctx.fillStyle='#ffcc44'; ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+    ctx.fillText('Would you like help? (+$200 to spend on packs)', W/2, 452);
+    ctx.fillStyle='#aa8800'; ctx.font='11px Courier New';
+    ctx.fillText('Free money — no strings attached', W/2, 468);
+    drawBtn('YES (+$200)',145,492,200,40,'#554400','#886600');
+    drawBtn('NO THANKS', 455,492,200,40,'#222','#444');
+    if(clicked){
+      if(inBtn(145,492,200,40)){save.money+=200;persist();showNotif('+$200 added!');battleResult=null;state='menu';}
+      if(inBtn(455,492,200,40)){battleResult=null;state='menu';}
     }
   }
 }
