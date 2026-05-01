@@ -739,7 +739,7 @@ function isBattleImpossible(levelIdx) {
   const eHp  = eDefs.reduce((s,c)=>s+c.hp, 0);
   const pTTK = Math.ceil(eHp / Math.max(1,pDmg));
   const eTTK = Math.ceil(pHp / Math.max(1,eDmg));
-  return pTTK > eTTK * 2.5;
+  return pTTK > eTTK * 1.2;
 }
 
 function endBattle(won) {
