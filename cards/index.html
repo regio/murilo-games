@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Card Clash</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a1a; display: flex; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+    canvas { display: block; cursor: default; touch-action: none; image-rendering: pixelated; }
+  </style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width  = 800;
+const H = canvas.height = 600;
+
+function fitCanvas() {
+  const s = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width  = (W * s) + 'px';
+  canvas.style.height = (H * s) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 120));
+fitCanvas();
+
+// ── Utilities ────────────────────────────────────────────────────────────────
+function inRect(px,py,x,y,w,h) { return px>=x&&px<=x+w&&py>=y&&py<=y+h; }
+function inBtn(x,y,w,h) { return inRect(clickX,clickY,x,y,w,h); }
+
+function rr(x,y,w,h,r) {
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.lineTo(x+w-r,y); ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+  ctx.lineTo(x+w,y+h-r); ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+  ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y);
+  ctx.closePath();
+}
+
+function drawBtn(label,x,y,w,h,base='#0066bb',hov='#0099ee') {
+  ctx.fillStyle = inRect(mouseX,mouseY,x,y,w,h) ? hov : base;
+  rr(x,y,w,h,8); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, x+w/2, y+h/2+5);
+}
+
+function menuBg() {
+  const g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0a0a1a'); g.addColorStop(1,'#0d1020');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  for(let i=0;i<80;i++){ctx.beginPath();ctx.arc((i*137.5)%W,(i*89.3)%H,0.8,0,Math.PI*2);ctx.fill();}
+}
+
+function seededRand(seed) {
+  let s = seed>>>0;
+  return ()=>{ s=(Math.imul(1664525,s)+1013904223)>>>0; return s/4294967296; };
+}
+
+function cardById(id) { return CARDS.find(c=>c.id===id)||null; }
+
+// ── Rarity ───────────────────────────────────────────────────────────────────
+const RCOL = { common:'#888', uncommon:'#44bb44', rare:'#4477ff', epic:'#bb44dd', mythic:'#ffaa00' };
+const RBG  = { common:'#0e0e0e', uncommon:'#081208', rare:'#08080e', epic:'#10080e', mythic:'#100e00' };
+
+// ── Card data (84 cards) ─────────────────────────────────────────────────────
+const CARDS = [
+  // ── Water ──────────────────────────────────────────────────────────────────
+  {id:'w01',name:'Tide Crawler', pack:'water',rarity:'common',  hp:28, dmg:8,  emoji:'🦀',
+   move1:{name:'Pinch',        type:'attack',   value:1.0, desc:'Basic attack'},
+   move2:{name:'Bubble Shield',type:'buff_hp',  value:20,  desc:'Reduce dmg 20% for 2 turns'}},
+  {id:'w02',name:'Reef Fish',    pack:'water',rarity:'common',  hp:22, dmg:6,  emoji:'🐟',
+   move1:{name:'Dart',         type:'attack',   value:1.0, desc:'Quick strike'},
+   move2:{name:'Scatter',      type:'double_hit',value:4,  desc:'Hit twice for 4 each'}},
+  {id:'w03',name:'Sea Urchin',   pack:'water',rarity:'common',  hp:32, dmg:7,  emoji:'🌊',
+   move1:{name:'Spike',        type:'attack',   value:1.0, desc:'Jab with spines'},
+   move2:{name:'Brine Sting',  type:'debuff',   value:0,   desc:'Remove enemy buffs'}},
+  {id:'w04',name:'Jellyfish',    pack:'water',rarity:'common',  hp:25, dmg:9,  emoji:'🪼',
+   move1:{name:'Sting',        type:'attack',   value:1.0, desc:'Tentacle sting'},
+   move2:{name:'Pulse',        type:'burn',     value:8,   desc:'Burns enemy for 2 turns'}},
+  {id:'w05',name:'Clam',         pack:'water',rarity:'common',  hp:35, dmg:5,  emoji:'🐚',
+   move1:{name:'Slam',         type:'attack',   value:1.0, desc:'Shell smash'},
+   move2:{name:'Shell Up',     type:'buff_hp',  value:25,  desc:'Reduce dmg 25% for 2 turns'}},
+  {id:'w06',name:'Kelp Sprout',  pack:'water',rarity:'common',  hp:24, dmg:7,  emoji:'🌿',
+   move1:{name:'Slap',         type:'attack',   value:1.0, desc:'Vine slap'},
+   move2:{name:'Sap Heal',     type:'heal',     value:20,  desc:'Heal 20% of max HP'}},
+  {id:'w07',name:'Pufferfish',   pack:'water',rarity:'uncommon',hp:42, dmg:12, emoji:'🐡',
+   move1:{name:'Spines Out',   type:'attack',   value:1.0, desc:'Sharp spine attack'},
+   move2:{name:'Inflate',      type:'buff_hp',  value:30,  desc:'Reduce dmg 30% for 2 turns'}},
+  {id:'w08',name:'Seahorse',     pack:'water',rarity:'uncommon',hp:38, dmg:14, emoji:'🌀',
+   move1:{name:'Current',      type:'attack',   value:1.0, desc:'Water current strike'},
+   move2:{name:'Camouflage',   type:'buff_hp',  value:20,  desc:'Reduce dmg 20% for 2 turns'}},
+  {id:'w09',name:'Octopus',      pack:'water',rarity:'uncommon',hp:50, dmg:11, emoji:'🐙',
+   move1:{name:'Tentacles',    type:'double_hit',value:8,  desc:'Hit twice with tentacles'},
+   move2:{name:'Ink Cloud',    type:'debuff',   value:0,   desc:'Remove enemy buffs'}},
+  {id:'w10',name:'Moray Eel',    pack:'water',rarity:'rare',    hp:62, dmg:20, emoji:'🐍',
+   move1:{name:'Clamp',        type:'attack',   value:1.0, desc:'Jaw clamp'},
+   move2:{name:'Shock Bite',   type:'burn',     value:8,   desc:'Electric bite — burns 2 turns'}},
+  {id:'w11',name:'Orca',         pack:'water',rarity:'epic',    hp:95, dmg:28, emoji:'🐬',
+   move1:{name:'Ram',          type:'attack',   value:1.2, desc:'Powerful charge'},
+   move2:{name:'Sonar Blast',  type:'double_hit',value:18, desc:'Sonic hit twice'}},
+  {id:'w12',name:'Kraken',       pack:'water',rarity:'epic',    hp:108,dmg:32, emoji:'🦑',
+   move1:{name:'Crush',        type:'attack',   value:1.3, desc:'Tentacle crush'},
+   move2:{name:'Ink Vortex',   type:'burn',     value:8,   desc:'Toxic ink — burns 2 turns'}},
+  // ── Sand ───────────────────────────────────────────────────────────────────
+  {id:'s01',name:'Sand Flea',    pack:'sand',rarity:'common',  hp:20, dmg:7,  emoji:'🦟',
+   move1:{name:'Bite',          type:'attack',   value:1.0, desc:'Quick bite'},
+   move2:{name:'Burrow',        type:'buff_hp',  value:20,  desc:'Hide underground, -20% dmg taken'}},
+  {id:'s02',name:'Dung Beetle',  pack:'sand',rarity:'common',  hp:33, dmg:6,  emoji:'🪲',
+   move1:{name:'Roll',          type:'attack',   value:1.0, desc:'Rolling strike'},
+   move2:{name:'Harden',        type:'buff_hp',  value:25,  desc:'Harden shell, -25% dmg taken'}},
+  {id:'s03',name:'Horned Lizard',pack:'sand',rarity:'common',  hp:29, dmg:8,  emoji:'🦎',
+   move1:{name:'Horn Jab',      type:'attack',   value:1.0, desc:'Horn strike'},
+   move2:{name:'Blood Spray',   type:'debuff',   value:0,   desc:'Remove enemy buffs with blood'}},
+  {id:'s04',name:'Camel',        pack:'sand',rarity:'common',  hp:35, dmg:5,  emoji:'🐪',
+   move1:{name:'Kick',          type:'attack',   value:1.0, desc:'Powerful kick'},
+   move2:{name:'Endure',        type:'heal',     value:25,  desc:'Heal 25% of max HP'}},
+  {id:'s05',name:'Sandworm',     pack:'sand',rarity:'common',  hp:26, dmg:9,  emoji:'🪱',
+   move1:{name:'Burrow Slam',   type:'attack',   value:1.0, desc:'Erupt from the sand'},
+   move2:{name:'Tunnel',        type:'buff_dmg', value:20,  desc:'Boost attack +20% for 2 turns'}},
+  {id:'s06',name:'Scorpion',     pack:'sand',rarity:'uncommon',hp:40, dmg:13, emoji:'🦂',
+   move1:{name:'Stab',          type:'attack',   value:1.0, desc:'Stinger jab'},
+   move2:{name:'Venom',         type:'burn',     value:8,   desc:'Venom — burns 2 turns'}},
+  {id:'s07',name:'Vulture',      pack:'sand',rarity:'uncommon',hp:37, dmg:15, emoji:'🦅',
+   move1:{name:'Swoop',         type:'attack',   value:1.0, desc:'Diving strike'},
+   move2:{name:'Feast',         type:'life_steal',value:1.0,desc:'Drain life from enemy'}},
+  {id:'s08',name:'Sand Manta',   pack:'sand',rarity:'uncommon',hp:48, dmg:12, emoji:'🦈',
+   move1:{name:'Sweep',         type:'double_hit',value:8,  desc:'Wing sweep twice'},
+   move2:{name:'Dust Wave',     type:'debuff',   value:0,   desc:'Sandblast removes buffs'}},
+  {id:'s09',name:'Desert Fox',   pack:'sand',rarity:'rare',    hp:58, dmg:18, emoji:'🦊',
+   move1:{name:'Pounce',        type:'attack',   value:1.2, desc:'Leap attack'},
+   move2:{name:'Sandblast',     type:'burn',     value:8,   desc:'Burning sand — burns 2 turns'}},
+  {id:'s10',name:'Sphinx',       pack:'sand',rarity:'rare',    hp:75, dmg:22, emoji:'🗿',
+   move1:{name:'Stone Claw',    type:'attack',   value:1.2, desc:'Massive claw strike'},
+   move2:{name:'Ancient Guard', type:'buff_hp',  value:30,  desc:'Stone skin, -30% dmg taken'}},
+  {id:'s11',name:'Sand Drake',   pack:'sand',rarity:'epic',    hp:88, dmg:30, emoji:'🐲',
+   move1:{name:'Sand Breath',   type:'attack',   value:1.3, desc:'Superheated sand blast'},
+   move2:{name:'Scale Toughen', type:'buff_hp',  value:25,  desc:'Scales up, -25% dmg taken'}},
+  {id:'s12',name:'Dust Titan',   pack:'sand',rarity:'epic',    hp:105,dmg:33, emoji:'🏔',
+   move1:{name:'Quake',         type:'attack',   value:1.4, desc:'Seismic slam'},
+   move2:{name:'Petrify',       type:'debuff',   value:0,   desc:'Stone gaze removes buffs'}},
+  // ── Snow ───────────────────────────────────────────────────────────────────
+  {id:'n01',name:'Snow Hare',    pack:'snow',rarity:'common',  hp:22, dmg:7,  emoji:'🐇',
+   move1:{name:'Kick',          type:'attack',   value:1.0, desc:'Back kick'},
+   move2:{name:'Dodge',         type:'buff_hp',  value:20,  desc:'Dodge stance, -20% dmg taken'}},
+  {id:'n02',name:'Penguin',      pack:'snow',rarity:'common',  hp:30, dmg:6,  emoji:'🐧',
+   move1:{name:'Headbutt',      type:'attack',   value:1.0, desc:'Waddling headbutt'},
+   move2:{name:'Huddle',        type:'heal',     value:20,  desc:'Heal 20% of max HP'}},
+  {id:'n03',name:'Frost Bat',    pack:'snow',rarity:'common',  hp:24, dmg:9,  emoji:'🦇',
+   move1:{name:'Claw',          type:'attack',   value:1.0, desc:'Wing claw'},
+   move2:{name:'Screech',       type:'debuff',   value:0,   desc:'Sonic screech strips buffs'}},
+  {id:'n04',name:'Snowball Snail',pack:'snow',rarity:'common', hp:34, dmg:5,  emoji:'🐌',
+   move1:{name:'Toss',          type:'attack',   value:1.0, desc:'Snowball toss'},
+   move2:{name:'Shell Curl',    type:'buff_hp',  value:30,  desc:'Curl in shell, -30% dmg taken'}},
+  {id:'n05',name:'Ice Mantis',   pack:'snow',rarity:'common',  hp:27, dmg:8,  emoji:'🦗',
+   move1:{name:'Slash',         type:'double_hit',value:5,  desc:'Dual blade slash x2'},
+   move2:{name:'Freeze',        type:'debuff',   value:0,   desc:'Icy wind strips enemy buffs'}},
+  {id:'n06',name:'Arctic Wolf',  pack:'snow',rarity:'uncommon',hp:45, dmg:13, emoji:'🐺',
+   move1:{name:'Fang',          type:'attack',   value:1.0, desc:'Ice fang bite'},
+   move2:{name:'Howl',          type:'buff_dmg', value:25,  desc:'Boost attack +25% for 2 turns'}},
+  {id:'n07',name:'Snow Owl',     pack:'snow',rarity:'uncommon',hp:38, dmg:15, emoji:'🦉',
+   move1:{name:'Talon Dive',    type:'attack',   value:1.2, desc:'Silent talon strike'},
+   move2:{name:'Feather Guard', type:'buff_hp',  value:20,  desc:'Feather shield, -20% dmg taken'}},
+  {id:'n08',name:'Blizzard Bear',pack:'snow',rarity:'rare',    hp:70, dmg:17, emoji:'🐻',
+   move1:{name:'Maul',          type:'attack',   value:1.2, desc:'Savage bear maul'},
+   move2:{name:'Hibernate',     type:'heal',     value:30,  desc:'Heal 30% of max HP'}},
+  {id:'n09',name:'Frost Wyrm',   pack:'snow',rarity:'rare',    hp:60, dmg:22, emoji:'❄',
+   move1:{name:'Frost Bite',    type:'burn',     value:8,   desc:'Freezing bite — burns 2 turns'},
+   move2:{name:'Ice Breath',    type:'attack',   value:1.3, desc:'Icy breath blast'}},
+  {id:'n10',name:'Mammoth',      pack:'snow',rarity:'epic',    hp:100,dmg:26, emoji:'🦣',
+   move1:{name:'Tusk Charge',   type:'attack',   value:1.3, desc:'Full charge with tusks'},
+   move2:{name:'Stampede',      type:'double_hit',value:18, desc:'Trample twice'}},
+  {id:'n11',name:'Glacier Golem',pack:'snow',rarity:'epic',    hp:110,dmg:28, emoji:'🧊',
+   move1:{name:'Shard Slam',    type:'attack',   value:1.2, desc:'Ice shard slam'},
+   move2:{name:'Icy Armor',     type:'buff_hp',  value:35,  desc:'Ice armor, -35% dmg taken'}},
+  {id:'n12',name:'Yeti',         pack:'snow',rarity:'epic',    hp:90, dmg:33, emoji:'🏔',
+   move1:{name:'Smash',         type:'attack',   value:1.5, desc:'Mighty smash'},
+   move2:{name:'Ice Howl',      type:'debuff',   value:0,   desc:'Howl strips enemy buffs'}},
+  // ── Land ───────────────────────────────────────────────────────────────────
+  {id:'l01',name:'Field Mouse',  pack:'land',rarity:'common',  hp:20, dmg:6,  emoji:'🐭',
+   move1:{name:'Nibble',        type:'attack',   value:1.0, desc:'Quick nibble'},
+   move2:{name:'Scurry',        type:'buff_hp',  value:20,  desc:'Evade stance, -20% dmg taken'}},
+  {id:'l02',name:'Boar',         pack:'land',rarity:'common',  hp:35, dmg:8,  emoji:'🐗',
+   move1:{name:'Gore',          type:'attack',   value:1.0, desc:'Tusk gore'},
+   move2:{name:'Rage',          type:'buff_dmg', value:20,  desc:'Boost attack +20% for 2 turns'}},
+  {id:'l03',name:'Badger',       pack:'land',rarity:'common',  hp:32, dmg:7,  emoji:'🦡',
+   move1:{name:'Dig',           type:'attack',   value:1.0, desc:'Claw dig attack'},
+   move2:{name:'Burrow Hide',   type:'buff_hp',  value:25,  desc:'Underground cover, -25% dmg'}},
+  {id:'l04',name:'Bull',         pack:'land',rarity:'common',  hp:33, dmg:9,  emoji:'🐂',
+   move1:{name:'Charge',        type:'attack',   value:1.2, desc:'Full-speed charge'},
+   move2:{name:'Stomp',         type:'debuff',   value:0,   desc:'Ground stomp strips buffs'}},
+  {id:'l05',name:'Fox',          pack:'land',rarity:'common',  hp:24, dmg:7,  emoji:'🦊',
+   move1:{name:'Pounce',        type:'attack',   value:1.0, desc:'Cunning pounce'},
+   move2:{name:'Cunning',       type:'buff_dmg', value:20,  desc:'Outsmart foe, +20% attack'}},
+  {id:'l06',name:'Gorilla',      pack:'land',rarity:'uncommon',hp:50, dmg:14, emoji:'🦍',
+   move1:{name:'Pound',         type:'attack',   value:1.0, desc:'Knuckle pound'},
+   move2:{name:'Chest Beat',    type:'buff_dmg', value:25,  desc:'Intimidate, +25% attack for 2 turns'}},
+  {id:'l07',name:'Lion',         pack:'land',rarity:'uncommon',hp:42, dmg:16, emoji:'🦁',
+   move1:{name:'Claw Swipe',    type:'double_hit',value:9,  desc:'Double claw swipe'},
+   move2:{name:'Roar',          type:'buff_dmg', value:30,  desc:'Fearsome roar, +30% attack'}},
+  {id:'l08',name:'Rhino',        pack:'land',rarity:'uncommon',hp:53, dmg:11, emoji:'🦏',
+   move1:{name:'Horn Rush',     type:'attack',   value:1.3, desc:'Horn-first charge'},
+   move2:{name:'Thick Hide',    type:'buff_hp',  value:30,  desc:'Hide toughens, -30% dmg taken'}},
+  {id:'l09',name:'Dire Wolf',    pack:'land',rarity:'rare',    hp:60, dmg:20, emoji:'🐺',
+   move1:{name:'Pack Bite',     type:'double_hit',value:12, desc:'Pack-assisted bite x2'},
+   move2:{name:'Howl',          type:'buff_dmg', value:25,  desc:'Pack howl, +25% attack'}},
+  {id:'l10',name:'Bear King',    pack:'land',rarity:'rare',    hp:78, dmg:18, emoji:'🐻',
+   move1:{name:'Maul',          type:'attack',   value:1.3, desc:'Ferocious maul'},
+   move2:{name:'Bear Hug',      type:'life_steal',value:1.0,desc:'Crushing embrace, drain life'}},
+  {id:'l11',name:'Ancient Tortoise',pack:'land',rarity:'epic', hp:108,dmg:24, emoji:'🐢',
+   move1:{name:'Shell Slam',    type:'attack',   value:1.2, desc:'Ancient shell slam'},
+   move2:{name:'Fortress',      type:'buff_hp',  value:40,  desc:'Fortress mode, -40% dmg taken'}},
+  {id:'l12',name:'Sabretooth',   pack:'land',rarity:'epic',    hp:85, dmg:34, emoji:'🐆',
+   move1:{name:'Fang Lunge',    type:'attack',   value:1.4, desc:'Prehistoric fang lunge'},
+   move2:{name:'Eviscerate',    type:'burn',     value:8,   desc:'Deep wounds — burns 2 turns'}},
+  // ── Sky ────────────────────────────────────────────────────────────────────
+  {id:'k01',name:'Sparrow',      pack:'sky',rarity:'common',   hp:22, dmg:8,  emoji:'🐦',
+   move1:{name:'Peck',           type:'attack',   value:1.0, desc:'Sharp beak peck'},
+   move2:{name:'Flock',          type:'buff_dmg', value:20,  desc:'Call flock, +20% attack'}},
+  {id:'k02',name:'Bat',          pack:'sky',rarity:'common',   hp:28, dmg:7,  emoji:'🦇',
+   move1:{name:'Swoop',          type:'attack',   value:1.0, desc:'Night swoop'},
+   move2:{name:'Echolocation',   type:'buff_dmg', value:20,  desc:'Perfect aim, +20% attack'}},
+  {id:'k03',name:'Stormcloud',   pack:'sky',rarity:'common',   hp:30, dmg:9,  emoji:'⛈',
+   move1:{name:'Lightning Jab',  type:'attack',   value:1.0, desc:'Static shock'},
+   move2:{name:'Drizzle',        type:'debuff',   value:0,   desc:'Rain washes away buffs'}},
+  {id:'k04',name:'Hawk',         pack:'sky',rarity:'uncommon', hp:40, dmg:14, emoji:'🦅',
+   move1:{name:'Dive Bomb',      type:'attack',   value:1.2, desc:'High-speed dive'},
+   move2:{name:'Keen Eye',       type:'buff_dmg', value:25,  desc:'Precision aim, +25% attack'}},
+  {id:'k05',name:'Thunderbird',  pack:'sky',rarity:'uncommon', hp:43, dmg:16, emoji:'⚡',
+   move1:{name:'Thunder Claw',   type:'burn',     value:8,   desc:'Electric claw — burns 2 turns'},
+   move2:{name:'Storm Surge',    type:'double_hit',value:11, desc:'Twin lightning strike'}},
+  {id:'k06',name:'Pegasus',      pack:'sky',rarity:'rare',     hp:65, dmg:19, emoji:'🐴',
+   move1:{name:'Sky Kick',       type:'attack',   value:1.2, desc:'Aerial kick'},
+   move2:{name:'Heavenly Aura',  type:'heal',     value:30,  desc:'Heal 30% of max HP'}},
+  {id:'k07',name:'Roc',          pack:'sky',rarity:'rare',     hp:72, dmg:23, emoji:'🦅',
+   move1:{name:'Talon Strike',   type:'attack',   value:1.3, desc:'Giant talon strike'},
+   move2:{name:'Wind Gust',      type:'debuff',   value:0,   desc:'Gust strips enemy buffs'}},
+  {id:'k08',name:'Storm Giant',  pack:'sky',rarity:'rare',     hp:68, dmg:21, emoji:'🌩',
+   move1:{name:'Bolt Slam',      type:'burn',     value:8,   desc:'Lightning slam — burns 2 turns'},
+   move2:{name:'Gale Fist',      type:'attack',   value:1.3, desc:'Storm-powered punch'}},
+  {id:'k09',name:'Wyvern',       pack:'sky',rarity:'epic',     hp:90, dmg:30, emoji:'🐲',
+   move1:{name:'Wing Slash',     type:'double_hit',value:20, desc:'Razor wing slash x2'},
+   move2:{name:'Acid Spit',      type:'burn',     value:8,   desc:'Acid — burns 2 turns'}},
+  {id:'k10',name:'Zephyr Drake', pack:'sky',rarity:'epic',     hp:95, dmg:28, emoji:'🌪',
+   move1:{name:'Cyclone',        type:'attack',   value:1.4, desc:'Cyclone slam'},
+   move2:{name:'Updraft',        type:'buff_hp',  value:30,  desc:'Air shield, -30% dmg taken'}},
+  {id:'k11',name:'Archangel',    pack:'sky',rarity:'epic',     hp:100,dmg:26, emoji:'😇',
+   move1:{name:'Holy Strike',    type:'attack',   value:1.3, desc:'Divine light strike'},
+   move2:{name:'Divine Shield',  type:'buff_hp',  value:40,  desc:'Holy shield, -40% dmg taken'}},
+  {id:'k12',name:'Sky Leviathan',pack:'sky',rarity:'epic',     hp:105,dmg:32, emoji:'🐉',
+   move1:{name:'Sky Crush',      type:'attack',   value:1.5, desc:'Aerial crush attack'},
+   move2:{name:'Vortex',         type:'double_hit',value:22, desc:'Vortex hit x2'}},
+  // ── Snake ──────────────────────────────────────────────────────────────────
+  {id:'p01',name:'Garden Snake', pack:'snake',rarity:'common',  hp:24, dmg:8,  emoji:'🐍',
+   move1:{name:'Bite',           type:'attack',   value:1.0, desc:'Quick bite'},
+   move2:{name:'Coil',           type:'buff_hp',  value:20,  desc:'Coil tight, -20% dmg taken'}},
+  {id:'p02',name:'Viper',        pack:'snake',rarity:'common',  hp:26, dmg:9,  emoji:'🐍',
+   move1:{name:'Fang Strike',    type:'attack',   value:1.0, desc:'Venomous fang strike'},
+   move2:{name:'Venom',          type:'burn',     value:8,   desc:'Venom — burns 2 turns'}},
+  {id:'p03',name:'Boa',          pack:'snake',rarity:'common',  hp:35, dmg:7,  emoji:'🐍',
+   move1:{name:'Squeeze',        type:'attack',   value:1.0, desc:'Constricting squeeze'},
+   move2:{name:'Constrict',      type:'debuff',   value:0,   desc:'Crush strips enemy buffs'}},
+  {id:'p04',name:'Cobra',        pack:'snake',rarity:'uncommon',hp:40, dmg:15, emoji:'🐍',
+   move1:{name:'Hood Flare',     type:'debuff',   value:0,   desc:'Hood display strips buffs'},
+   move2:{name:'Cobra Strike',   type:'attack',   value:1.3, desc:'Lightning-fast strike'}},
+  {id:'p05',name:'King Snake',   pack:'snake',rarity:'uncommon',hp:45, dmg:13, emoji:'👑',
+   move1:{name:'Dominate',       type:'attack',   value:1.0, desc:'Dominant strike'},
+   move2:{name:'Shed Skin',      type:'heal',     value:25,  desc:'Shed and heal 25% HP'}},
+  {id:'p06',name:'Black Mamba',  pack:'snake',rarity:'rare',    hp:58, dmg:22, emoji:'🖤',
+   move1:{name:'Mamba Strike',   type:'double_hit',value:14, desc:'Blazing fast double strike'},
+   move2:{name:'Toxic',          type:'burn',     value:8,   desc:'Toxic bite — burns 2 turns'}},
+  {id:'p07',name:'Rattlesnake',  pack:'snake',rarity:'rare',    hp:65, dmg:20, emoji:'🔔',
+   move1:{name:'Rattle',         type:'debuff',   value:0,   desc:'Rattle intimidation strips buffs'},
+   move2:{name:'Venom Fang',     type:'life_steal',value:1.0,desc:'Toxic drain, steal life'}},
+  {id:'p08',name:'Anaconda',     pack:'snake',rarity:'rare',    hp:75, dmg:18, emoji:'🐍',
+   move1:{name:'Death Coil',     type:'attack',   value:1.4, desc:'Bone-crushing coil'},
+   move2:{name:'Swallow',        type:'heal',     value:30,  desc:'Consume and heal 30% HP'}},
+  {id:'p09',name:'Sea Serpent',  pack:'snake',rarity:'epic',    hp:88, dmg:30, emoji:'🌊',
+   move1:{name:'Tide Crush',     type:'attack',   value:1.3, desc:'Tidal wave slam'},
+   move2:{name:'Brine Burn',     type:'burn',     value:8,   desc:'Saltwater burn — 2 turns'}},
+  {id:'p10',name:'Basilisk',     pack:'snake',rarity:'epic',    hp:95, dmg:29, emoji:'🦎',
+   move1:{name:'Stone Gaze',     type:'debuff',   value:0,   desc:'Petrifying gaze strips buffs'},
+   move2:{name:'Petrify Bite',   type:'attack',   value:1.5, desc:'Petrifying bite'}},
+  {id:'p11',name:'Naga',         pack:'snake',rarity:'epic',    hp:102,dmg:31, emoji:'🧜',
+   move1:{name:'Spear Thrust',   type:'double_hit',value:20, desc:'Twin spear thrust x2'},
+   move2:{name:'Serpent Song',   type:'buff_dmg', value:30,  desc:'Enchant, +30% attack for 2 turns'}},
+  {id:'p12',name:'World Serpent',pack:'snake',rarity:'epic',    hp:107,dmg:33, emoji:'♾',
+   move1:{name:'Ouroboros',      type:'life_steal',value:1.2,desc:'Ancient cycle, drain life'},
+   move2:{name:'Coil Crush',     type:'attack',   value:1.5, desc:'World-ending crush'}},
+  // ── Mythic ─────────────────────────────────────────────────────────────────
+  {id:'m01',name:'Dragon',       pack:'mythic',rarity:'mythic',hp:180,dmg:55, emoji:'🐉',
+   move1:{name:'Dragon Fire',    type:'burn',     value:8,   desc:'Scorching fire — burns 2 turns'},
+   move2:{name:'Obliterate',     type:'attack',   value:1.8, desc:'World-ending attack'}},
+  {id:'m02',name:'Hydra',        pack:'mythic',rarity:'mythic',hp:160,dmg:50, emoji:'🐍',
+   move1:{name:'Triple Bite',    type:'double_hit',value:35, desc:'Three-headed bite x2'},
+   move2:{name:'Regenerate',     type:'heal',     value:40,  desc:'Grow back heads, heal 40%'}},
+  {id:'m03',name:'Unicorn',      pack:'mythic',rarity:'mythic',hp:140,dmg:45, emoji:'🦄',
+   move1:{name:'Horn Lance',     type:'attack',   value:1.6, desc:'Pure light lance'},
+   move2:{name:'Purify',         type:'heal',     value:50,  desc:'Purifying magic, heal 50%'}},
+  {id:'m04',name:'Minotaur',     pack:'mythic',rarity:'mythic',hp:175,dmg:52, emoji:'🐂',
+   move1:{name:'Axe Smash',      type:'attack',   value:1.7, desc:'Labyrinth axe smash'},
+   move2:{name:'Battle Rage',    type:'buff_dmg', value:50,  desc:'Berserk rage, +50% attack'}},
+  {id:'m05',name:'Phoenix',      pack:'mythic',rarity:'mythic',hp:130,dmg:48, emoji:'🔥',
+   move1:{name:'Flame Strike',   type:'burn',     value:8,   desc:'Eternal flame — burns 2 turns'},
+   move2:{name:'Rebirth',        type:'revive',   value:40,  desc:'Resurrect at 40% HP once'}},
+  {id:'m06',name:'Griffin',      pack:'mythic',rarity:'mythic',hp:150,dmg:52, emoji:'🦅',
+   move1:{name:'Sky Rend',       type:'double_hit',value:36, desc:'Talon and claw x2'},
+   move2:{name:'Pride Roar',     type:'buff_dmg', value:40,  desc:'Noble roar, +40% attack'}},
+  {id:'m07',name:'Megalodon',    pack:'mythic',rarity:'mythic',hp:200,dmg:58, emoji:'🦈',
+   move1:{name:'Mega Bite',      type:'attack',   value:2.0, desc:'Prehistoric mega bite'},
+   move2:{name:'Death Roll',     type:'life_steal',value:1.5,desc:'Death roll, drain massive life'}},
+  {id:'m08',name:'Inferno Titan',pack:'mythic',rarity:'epic', hp:100,dmg:34, emoji:'🔥',
+   move1:{name:'Lava Fist',      type:'burn',     value:8,   desc:'Molten fist — burns 2 turns'},
+   move2:{name:'Magma Surge',    type:'attack',   value:1.4, desc:'Magma eruption strike'}},
+  {id:'m09',name:'Void Walker',  pack:'mythic',rarity:'epic', hp:95, dmg:32, emoji:'🌑',
+   move1:{name:'Dark Pulse',     type:'attack',   value:1.4, desc:'Void energy pulse'},
+   move2:{name:'Void Drain',     type:'life_steal',value:1.2,desc:'Drain life from the void'}},
+  {id:'m10',name:'Elder Colossus',pack:'mythic',rarity:'epic',hp:108,dmg:28, emoji:'🗿',
+   move1:{name:'Titan Slam',     type:'attack',   value:1.5, desc:'Ancient titan slam'},
+   move2:{name:'Iron Body',      type:'buff_hp',  value:40,  desc:'Iron form, -40% dmg taken'}},
+  {id:'m11',name:'Shadow Wraith',pack:'mythic',rarity:'epic', hp:88, dmg:35, emoji:'👻',
+   move1:{name:'Soul Rend',      type:'double_hit',value:24, desc:'Tear at the soul x2'},
+   move2:{name:'Shade',          type:'debuff',   value:0,   desc:'Shadow strips all buffs'}},
+  // Air (junk card — any pack)
+  {id:'air',name:'Air',          pack:null,   rarity:'common',  hp:1,  dmg:0,  emoji:'💨',
+   move1:{name:'Nothing',        type:'attack',   value:0,   desc:'Does nothing'},
+   move2:{name:'Drift',          type:'attack',   value:0,   desc:'Also does nothing'}},
+];
+
+// ── Pack definitions ─────────────────────────────────────────────────────────
+const PACKS = {
+  water:  {name:'Water',  price:150, emoji:'🌊', col:'#0077cc', bg:'#001a2e', rarity_hint:'Common → Epic',
+           weights:{common:55,uncommon:25,rare:12,epic:5,air:3}},
+  sand:   {name:'Sand',   price:150, emoji:'🏜', col:'#cc8800', bg:'#1a1200', rarity_hint:'Common → Epic',
+           weights:{common:55,uncommon:25,rare:12,epic:5,air:3}},
+  snow:   {name:'Snow',   price:150, emoji:'❄',  col:'#88aadd', bg:'#0a1020', rarity_hint:'Common → Epic',
+           weights:{common:55,uncommon:25,rare:12,epic:5,air:3}},
+  land:   {name:'Land',   price:150, emoji:'🌿', col:'#44aa44', bg:'#081008', rarity_hint:'Common → Epic',
+           weights:{common:55,uncommon:25,rare:12,epic:5,air:3}},
+  sky:    {name:'Sky',    price:200, emoji:'☁',  col:'#6666ff', bg:'#080820', rarity_hint:'Rare odds up',
+           weights:{common:40,uncommon:28,rare:20,epic:9,air:3}},
+  snake:  {name:'Snake',  price:200, emoji:'🐍', col:'#44cc44', bg:'#081408', rarity_hint:'Rare odds up',
+           weights:{common:40,uncommon:28,rare:20,epic:9,air:3}},
+  mythic: {name:'Mythic', price:500, emoji:'✨', col:'#ffaa00', bg:'#180e00', rarity_hint:'Mythic possible!',
+           weights:{mythic:15,epic:30,rare:25,uncommon:15,common:10,air:5}},
+};
+
+// ── Save data ────────────────────────────────────────────────────────────────
+let save = JSON.parse(localStorage.getItem('cardgame')||'null') || {
+  money:300, cards:[], deck:[], highestLevel:0
+};
+function persist() { localStorage.setItem('cardgame', JSON.stringify(save)); }
+
+// ── State variables ──────────────────────────────────────────────────────────
+let state    = 'mobilecheck';
+let isMobile = false;
+
+let mouseX = W/2, mouseY = H/2;
+let clicked = false, clickX = 0, clickY = 0;
+
+let drag      = null;  // {cardId,fromArea:'collection'|'deck',fromIndex,snapX,snapY}
+let dragX     = 0, dragY = 0;
+let buildScroll = 0;
+
+let packOpen  = null;  // {packId,phase:'flip'|'reveal',timer,card}
+let battle    = null;
+let battleResult = null;  // {won,moneyEarned}
+let reviveUsed = {};
+
+let notif = '', notifTimer = 0;
+
+const particles = [];
+
+// ── Notification ─────────────────────────────────────────────────────────────
+function showNotif(msg) { notif=msg; notifTimer=150; }
+function drawNotif() {
+  if (!notif||notifTimer<=0) return;
+  notifTimer--;
+  const al = Math.min(1, notifTimer/30);
+  ctx.save(); ctx.globalAlpha=al;
+  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(200,430,400,36);
+  ctx.fillStyle='#ffdd88'; ctx.font='14px Courier New';
+  ctx.textAlign='center'; ctx.fillText(notif, W/2, 454);
+  ctx.restore();
+}
+
+// ── Card rendering ───────────────────────────────────────────────────────────
+function drawCardSmall(card, x, y, w, h, inDeck=false) {
+  if (!card) {
+    ctx.strokeStyle='#334'; ctx.lineWidth=1;
+    ctx.setLineDash([4,4]);
+    rr(x,y,w,h,6); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='#334'; ctx.font=`10px Courier New`;
+    ctx.textAlign='center';
+    ctx.fillText('drag here', x+w/2, y+h*0.55);
+    return;
+  }
+  const isAir = card.id==='air';
+  ctx.save();
+  if (isAir) ctx.globalAlpha=0.4;
+
+  ctx.fillStyle = RBG[card.rarity]||'#0e0e0e';
+  rr(x,y,w,h,6); ctx.fill();
+
+  ctx.strokeStyle = inDeck ? '#00ff88' : (RCOL[card.rarity]||'#555');
+  ctx.lineWidth   = inDeck ? 2 : 1.2;
+  rr(x,y,w,h,6); ctx.stroke();
+  ctx.lineWidth=1;
+
+  const efs = Math.floor(h*0.30);
+  ctx.font = `${efs}px serif`;
+  ctx.textAlign='center';
+  ctx.fillText(card.emoji, x+w/2, y+h*0.40);
+
+  const fs = Math.max(7, Math.floor(h*0.13));
+  ctx.fillStyle='#ddeeff'; ctx.font=`bold ${fs}px Courier New`;
+  ctx.textAlign='center';
+  const nm = card.name.length>13?card.name.slice(0,12)+'…':card.name;
+  ctx.fillText(nm, x+w/2, y+h*0.60);
+
+  const sf = Math.max(7, Math.floor(h*0.11));
+  ctx.font=`${sf}px Courier New`;
+  ctx.fillStyle='#cc5555'; ctx.textAlign='left';
+  ctx.fillText(`♥${card.hp}`, x+5, y+h*0.77);
+  ctx.fillStyle='#ffaa33'; ctx.textAlign='right';
+  ctx.fillText(`⚔${card.dmg}`, x+w-5, y+h*0.77);
+
+  ctx.fillStyle=RCOL[card.rarity]||'#555';
+  ctx.beginPath(); ctx.arc(x+w-7,y+7,4,0,Math.PI*2); ctx.fill();
+
+  if (w>180) {
+    // Show move names in deck slot view
+    ctx.fillStyle='#4a6677'; ctx.font=`${Math.max(7,Math.floor(h*0.095))}px Courier New`;
+    ctx.textAlign='left';
+    if (card.move1) ctx.fillText(card.move1.name, x+6, y+h*0.88);
+    ctx.textAlign='right';
+    if (card.move2) ctx.fillText(card.move2.name, x+w-6, y+h*0.88);
+  }
+
+  if (isAir) {
+    ctx.globalAlpha=0.9; ctx.strokeStyle='#ff4444'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.moveTo(x+10,y+10); ctx.lineTo(x+w-10,y+h-10);
+    ctx.moveTo(x+w-10,y+10); ctx.lineTo(x+10,y+h-10);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawCardFull(card, x, y, w=140, h=162) {
+  if (!card) return;
+  ctx.save();
+  const col = RCOL[card.rarity]||'#555';
+  ctx.fillStyle = RBG[card.rarity]||'#0e0e0e';
+  rr(x,y,w,h,8); ctx.fill();
+  if (card.rarity==='mythic') { ctx.shadowColor=col; ctx.shadowBlur=14; }
+  ctx.strokeStyle=col; ctx.lineWidth=2;
+  rr(x,y,w,h,8); ctx.stroke();
+  ctx.shadowBlur=0; ctx.lineWidth=1;
+
+  ctx.font='36px serif'; ctx.textAlign='center';
+  ctx.fillText(card.emoji, x+w/2, y+50);
+
+  ctx.fillStyle='#eeeeff'; ctx.font='bold 11px Courier New';
+  ctx.textAlign='center';
+  const nm = card.name.length>14?card.name.slice(0,13)+'…':card.name;
+  ctx.fillText(nm, x+w/2, y+68);
+
+  ctx.fillStyle=col; ctx.font='8px Courier New';
+  ctx.fillText(card.rarity.toUpperCase(), x+w/2, y+80);
+
+  // HP bar
+  if (card.currentHp !== undefined) {
+    const ratio = Math.max(0, card.currentHp/card.hp);
+    const bx=x+8, by=y+86, bw=w-16, bh=7;
+    ctx.fillStyle='#222'; ctx.fillRect(bx,by,bw,bh);
+    ctx.fillStyle = ratio>0.5?'#44cc44':ratio>0.25?'#ccaa00':'#cc3333';
+    ctx.fillRect(bx,by,bw*ratio,bh);
+    ctx.strokeStyle='#444'; ctx.lineWidth=0.5;
+    ctx.strokeRect(bx,by,bw,bh); ctx.lineWidth=1;
+    ctx.fillStyle='#ccc'; ctx.font='8px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`${card.currentHp}/${card.hp}`, x+w/2, by+bh+10);
+  }
+
+  // Status badges
+  let sx=x+4; const sy2=y+110;
+  ctx.font='9px serif';
+  if (card.burnStack&&card.burnStack.turns>0){ctx.fillStyle='#ff6600';ctx.textAlign='left';ctx.fillText(`🔥×${card.burnStack.turns}`,sx,sy2);sx+=26;}
+  if (card.buffDmgTurns>0){ctx.fillStyle='#ffdd44';ctx.textAlign='left';ctx.fillText(`⬆×${card.buffDmgTurns}`,sx,sy2);sx+=26;}
+  if (card.buffHpTurns>0){ctx.fillStyle='#44aaff';ctx.textAlign='left';ctx.fillText(`🛡×${card.buffHpTurns}`,sx,sy2);}
+
+  // Move names
+  ctx.fillStyle='#4a6677'; ctx.font='8px Courier New';
+  ctx.textAlign='left';
+  if (card.move1) ctx.fillText(card.move1.name, x+4, y+h-20);
+  ctx.textAlign='right';
+  if (card.move2) ctx.fillText(card.move2.name, x+w-4, y+h-20);
+  ctx.textAlign='left';
+  ctx.restore();
+}
+
+function drawCardBack(x,y,w,h) {
+  ctx.fillStyle='#1a0a2e'; rr(x,y,w,h,8); ctx.fill();
+  ctx.strokeStyle='#aa44ff'; ctx.lineWidth=2; rr(x,y,w,h,8); ctx.stroke(); ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(170,68,255,0.25)'; ctx.lineWidth=0.5;
+  for(let i=0;i<4;i++){rr(x+6+i*5,y+6+i*5,w-12-i*10,h-12-i*10,5);ctx.stroke();}
+  ctx.lineWidth=1;
+  ctx.font='32px serif'; ctx.textAlign='center';
+  ctx.fillText('🃏', x+w/2, y+h/2+11);
+}
+
+// ── Pack rolling ─────────────────────────────────────────────────────────────
+function rollCardFromPack(packId) {
+  const pack = PACKS[packId];
+  const ws = pack.weights;
+  const total = Object.values(ws).reduce((a,b)=>a+b,0);
+  let r = Math.random()*total, chosen='common';
+  for (const [rar,wt] of Object.entries(ws)) { r-=wt; if(r<=0){chosen=rar;break;} }
+  if (chosen==='air') return cardById('air');
+
+  let pool;
+  if (packId==='mythic') {
+    pool = chosen==='mythic'
+      ? CARDS.filter(c=>c.rarity==='mythic')
+      : CARDS.filter(c=>c.rarity===chosen&&c.id!=='air');
+  } else {
+    pool = CARDS.filter(c=>c.pack===packId&&c.rarity===chosen);
+  }
+  if (!pool.length) pool = CARDS.filter(c=>c.pack===packId&&c.rarity==='common');
+  return pool[Math.floor(Math.random()*pool.length)] || cardById('air');
+}
+
+// ── Enemy deck generation ────────────────────────────────────────────────────
+function buildEnemyDeck(level) {
+  const rand = seededRand(0xCAFE0000+level);
+  const rarities = level<=20  ? ['common','uncommon'] :
+                   level<=50  ? ['common','uncommon','rare'] :
+                   level<=80  ? ['common','uncommon','rare','epic'] :
+                                ['uncommon','rare','epic','mythic'];
+  const pool = CARDS.filter(c=>rarities.includes(c.rarity)&&c.id!=='air');
+  const size = Math.min(5, 1+Math.floor(level/20));
+  const deck = [];
+  for(let i=0;i<size;i++) deck.push(pool[Math.floor(rand()*pool.length)].id);
+  return deck;
+}
+
+// ── Battle card factory ──────────────────────────────────────────────────────
+let _bid = 0;
+function makeBattleCard(def) {
+  if (!def) return null;
+  return { ...def, currentHp:def.hp, buffDmgMult:1, buffDmgTurns:0,
+           buffHpReduct:0, buffHpTurns:0, burnStack:null, bid:++_bid };
+}
+
+// ── Battle logic ─────────────────────────────────────────────────────────────
+function addLog(msg) {
+  if (!battle) return;
+  battle.log.unshift(msg);
+  if (battle.log.length>4) battle.log.pop();
+}
+
+function applyMove(move, atk, def) {
+  if (!atk||!def||!move) return;
+  const mult   = atk.buffDmgMult||1;
+  const reduce = def.buffHpReduct||0;
+  switch(move.type) {
+    case 'attack': {
+      const d=Math.max(1,Math.floor(atk.dmg*move.value*mult*(1-reduce)));
+      def.currentHp=Math.max(0,def.currentHp-d);
+      addLog(`${atk.name}: ${move.name} — ${d} dmg`);
+      break;
+    }
+    case 'double_hit': {
+      const d=Math.max(1,Math.floor(move.value*mult*(1-reduce)));
+      def.currentHp=Math.max(0,def.currentHp-d*2);
+      addLog(`${atk.name}: ${move.name} — ${d}+${d} dmg`);
+      break;
+    }
+    case 'heal': {
+      const h=Math.max(1,Math.floor(atk.hp*move.value/100));
+      atk.currentHp=Math.min(atk.hp,atk.currentHp+h);
+      addLog(`${atk.name}: ${move.name} — healed ${h} HP`);
+      break;
+    }
+    case 'buff_dmg': {
+      atk.buffDmgMult=1+move.value/100; atk.buffDmgTurns=2;
+      addLog(`${atk.name}: ${move.name} — attack up!`);
+      break;
+    }
+    case 'buff_hp': {
+      atk.buffHpReduct=move.value/100; atk.buffHpTurns=2;
+      addLog(`${atk.name}: ${move.name} — defense up!`);
+      break;
+    }
+    case 'burn': {
+      def.burnStack={dmgPct:8,turns:2};
+      addLog(`${atk.name}: ${move.name} — ${def.name} is burning!`);
+      break;
+    }
+    case 'life_steal': {
+      const d=Math.max(1,Math.floor(atk.dmg*move.value*mult));
+      def.currentHp=Math.max(0,def.currentHp-d);
+      const h=Math.floor(d/2);
+      atk.currentHp=Math.min(atk.hp,atk.currentHp+h);
+      addLog(`${atk.name}: ${move.name} — ${d} dmg, +${h} HP`);
+      break;
+    }
+    case 'debuff': {
+      def.buffDmgMult=1; def.buffDmgTurns=0;
+      def.buffHpReduct=0; def.buffHpTurns=0;
+      addLog(`${atk.name}: ${move.name} — ${def.name}'s buffs cleared!`);
+      break;
+    }
+    case 'revive': {
+      addLog(`${atk.name}: ${move.name} prepared...`);
+      break;
+    }
+    default:
+      addLog(`${atk.name}: ${move.name}`);
+  }
+}
+
+function tickStatus(card) {
+  if (!card) return;
+  if (card.burnStack&&card.burnStack.turns>0) {
+    const d=Math.max(1,Math.floor(card.hp*card.burnStack.dmgPct/100));
+    card.currentHp=Math.max(0,card.currentHp-d);
+    card.burnStack.turns--;
+    addLog(`${card.name} burns for ${d}`);
+    if(card.burnStack.turns<=0) card.burnStack=null;
+  }
+  if(card.buffDmgTurns>0&&--card.buffDmgTurns===0) card.buffDmgMult=1;
+  if(card.buffHpTurns>0&&--card.buffHpTurns===0)   card.buffHpReduct=0;
+}
+
+function checkDeaths() {
+  if (!battle) return false;
+  for (const side of ['player','enemy']) {
+    const active = battle[side+'Active'];
+    const deck   = battle[side+'Deck'];
+    for(let i=active.length-1;i>=0;i--) {
+      const c=active[i];
+      if(c.currentHp<=0) {
+        if(c.id==='m05'&&!reviveUsed[c.bid]) {
+          reviveUsed[c.bid]=true;
+          c.currentHp=Math.floor(c.hp*0.4);
+          c.burnStack=null;
+          addLog(`${c.name} rises from the ashes!`);
+          continue;
+        }
+        active.splice(i,1);
+        addLog(`${c.name} has fallen!`);
+        if(deck.length>0){const nxt=deck.shift();active.push(nxt);addLog(`${nxt.name} enters!`);}
+      }
+    }
+    if(active.length===0&&deck.length===0){endBattle(side==='enemy');return true;}
+  }
+  return false;
+}
+
+function enemyAI(enemy, target) {
+  if(!enemy||!target) return enemy&&enemy.move1;
+  const ratio=enemy.currentHp/enemy.hp;
+  const moves=[enemy.move1,enemy.move2];
+  if(ratio<0.4){const d=moves.find(m=>m.type==='heal'||m.type==='buff_hp');if(d)return d;}
+  const off=moves.find(m=>['attack','double_hit','burn','life_steal'].includes(m.type));
+  return off||moves[0];
+}
+
+function resolveRound(moveIdx) {
+  if(!battle) return;
+  const pCard = battle.playerActive[battle.activePlayerIdx];
+  if(!pCard) return;
+  const eIdx  = battle.twoCard ? Math.min(battle.activePlayerIdx, battle.enemyActive.length-1) : 0;
+  const eCard = battle.enemyActive[eIdx];
+  if(!eCard) return;
+
+  const pMove = moveIdx===0 ? pCard.move1 : pCard.move2;
+  applyMove(pMove, pCard, eCard);
+  tickStatus(pCard); tickStatus(eCard);
+  if(checkDeaths()) return;
+
+  if(battle.twoCard && battle.playerActive.length>1 && battle.activePlayerIdx===0) {
+    battle.activePlayerIdx=1;
+    return; // wait for second card pick
+  }
+
+  // Enemy responds
+  battle.activePlayerIdx=0;
+  const allEnemies=[...battle.enemyActive];
+  for(let ei=0;ei<allEnemies.length;ei++) {
+    const ec=allEnemies[ei];
+    if(!ec||ec.currentHp<=0) continue;
+    const pt=battle.playerActive[Math.min(ei,battle.playerActive.length-1)];
+    if(!pt) continue;
+    const em=enemyAI(ec,pt);
+    applyMove(em,ec,pt);
+    tickStatus(ec); tickStatus(pt);
+    if(checkDeaths()) return;
+  }
+}
+
+function endBattle(won) {
+  const reward = won ? Math.floor(25+battle.level*3) : 0;
+  if(won) {
+    save.money+=reward;
+    if(battle.level>=save.highestLevel) save.highestLevel=battle.level+1;
+    persist();
+  }
+  battleResult={won,moneyEarned:reward};
+  state='battle_result';
+}
+
+function startBattle(levelIdx) {
+  reviveUsed={}; _bid=0;
+  const twoCard=(levelIdx+1)%5===0;
+  const pDeck=save.deck.map(id=>makeBattleCard(cardById(id))).filter(Boolean);
+  const eDeck=buildEnemyDeck(levelIdx+1).map(id=>makeBattleCard(cardById(id))).filter(Boolean);
+  battle={
+    level:levelIdx, twoCard,
+    playerDeck: pDeck.slice(twoCard?2:1),
+    enemyDeck:  eDeck.slice(twoCard?2:1),
+    playerActive: twoCard?pDeck.slice(0,2):[pDeck[0]].filter(Boolean),
+    enemyActive:  twoCard?eDeck.slice(0,2):[eDeck[0]].filter(Boolean),
+    activePlayerIdx:0,
+    log:['Battle start!','','',''],
+  };
+  battleResult=null;
+  state='battle';
+}
+
+// ── Screens ──────────────────────────────────────────────────────────────────
+function drawMobileCheck() {
+  menuBg();
+  ctx.font='bold 30px Courier New'; ctx.textAlign='center';
+  ctx.fillStyle='#e0e0ff'; ctx.fillText('ARE YOU ON MOBILE?', W/2, 220);
+  ctx.fillStyle='#667788'; ctx.font='13px Courier New';
+  ctx.fillText('Choose your control scheme', W/2, 256);
+  drawBtn('YES',210,300,150,52);
+  drawBtn('NO', 440,300,150,52);
+  ctx.fillStyle='#445566'; ctx.font='11px Courier New';
+  ctx.fillText('Mobile: tap to interact   Desktop: mouse + drag', W/2, 400);
+  if(clicked){
+    if(inBtn(210,300,150,52)){isMobile=true;  state='menu';}
+    if(inBtn(440,300,150,52)){isMobile=false; state='menu';}
+  }
+}
+
+function drawMenu() {
+  menuBg();
+  ctx.save();
+  ctx.font='bold 54px Courier New'; ctx.textAlign='center';
+  const tg=ctx.createLinearGradient(0,160,0,220);
+  tg.addColorStop(0,'#00aaff'); tg.addColorStop(1,'#aa44ff');
+  ctx.fillStyle=tg; ctx.fillText('CARD CLASH', W/2, 200);
+  ctx.restore();
+
+  ctx.fillStyle='#667788'; ctx.font='13px Courier New'; ctx.textAlign='center';
+  ctx.fillText('Build your deck. Defeat 100 levels.', W/2, 232);
+
+  ctx.fillStyle='#ffcc00'; ctx.font='bold 14px Courier New'; ctx.textAlign='right';
+  ctx.fillText(`💰 $${save.money}`, W-15, 22);
+
+  drawBtn('PLAY',  140,290,160,50,'#004466','#0077aa');
+  drawBtn('BUILD', 320,290,160,50,'#224400','#447700');
+  drawBtn('SHOP',  500,290,160,50,'#330044','#660088');
+
+  ctx.fillStyle='#445566'; ctx.font='11px Courier New'; ctx.textAlign='center';
+  ctx.fillText(`Cards: ${[...new Set(save.cards)].length}  ·  Deck: ${save.deck.length}/5  ·  Levels beaten: ${save.highestLevel}/100`, W/2, 380);
+
+  if(clicked){
+    if(inBtn(140,290,160,50)){
+      if(save.deck.length===0){showNotif('Build a deck in BUILD first!');}
+      else state='levelselect';
+    }
+    if(inBtn(320,290,160,50)) state='build';
+    if(inBtn(500,290,160,50)) state='shop';
+  }
+  drawNotif();
+}
+
+function drawShop() {
+  menuBg();
+  ctx.fillStyle='#e0e0ff'; ctx.font='bold 22px Courier New'; ctx.textAlign='center';
+  ctx.fillText('SHOP', W/2, 32);
+  ctx.fillStyle='#ffcc00'; ctx.font='bold 14px Courier New'; ctx.textAlign='right';
+  ctx.fillText(`💰 $${save.money}`, W-15, 22);
+  drawBtn('BACK',10,10,80,30,'#222','#444');
+  if(clicked&&inBtn(10,10,80,30)) state='menu';
+
+  const packIds=Object.keys(PACKS);
+  const row1=packIds.slice(0,4), row2=packIds.slice(4);
+  const r1starts=[45,225,405,580], r1y=55;
+  const r2starts=[140,330,520],    r2y=205;
+
+  function drawPackCard(pid, px, py) {
+    const p=PACKS[pid];
+    const hover=inRect(mouseX,mouseY,px,py,170,120);
+    const afford=save.money>=p.price;
+    ctx.fillStyle=p.bg; rr(px,py,170,120,10); ctx.fill();
+    ctx.strokeStyle=hover?p.col:(afford?p.col+'88':'#333');
+    ctx.lineWidth=hover?2.5:1.5; rr(px,py,170,120,10); ctx.stroke(); ctx.lineWidth=1;
+    ctx.font='28px serif'; ctx.textAlign='center'; ctx.fillText(p.emoji,px+85,py+40);
+    ctx.fillStyle='#ddeeff'; ctx.font='bold 13px Courier New'; ctx.fillText(p.name,px+85,py+62);
+    ctx.fillStyle=afford?'#44ff88':'#ff5555'; ctx.font='12px Courier New'; ctx.fillText(`$${p.price}`,px+85,py+80);
+    ctx.fillStyle='#445566'; ctx.font='9px Courier New'; ctx.fillText(p.rarity_hint,px+85,py+98);
+    if(clicked&&inRect(clickX,clickY,px,py,170,120)){
+      if(afford){save.money-=p.price;persist();const card=rollCardFromPack(pid);packOpen={packId:pid,phase:'flip',timer:0,card};state='packopen';}
+      else showNotif('Not enough money!');
+    }
+  }
+
+  row1.forEach((id,i)=>drawPackCard(id,r1starts[i],r1y));
+  row2.forEach((id,i)=>drawPackCard(id,r2starts[i],r2y));
+
+  ctx.fillStyle='#445566'; ctx.font='10px Courier New'; ctx.textAlign='center';
+  ctx.fillText('Click a pack to open it', W/2, 360);
+  drawNotif();
+}
+
+function drawPackOpen() {
+  ctx.fillStyle='rgba(0,0,0,0.9)'; ctx.fillRect(0,0,W,H);
+  const po=packOpen; po.timer++;
+  const cx=W/2, cy=H/2, cw=160, ch=220;
+  const px=cx-cw/2, py=cy-ch/2;
+
+  if(po.phase==='flip') {
+    const t=Math.min(1,po.timer/40);
+    const scaleX=Math.abs(Math.cos(t*Math.PI));
+    ctx.save(); ctx.translate(cx,cy); ctx.scale(scaleX,1); ctx.translate(-cx,-cy);
+    if(t<0.5) drawCardBack(px,py,cw,ch);
+    else       drawCardSmall(po.card,px,py,cw,ch);
+    ctx.restore();
+    if(po.timer>=40) po.phase='reveal';
+  } else {
+    const rcol=RCOL[po.card.rarity]||'#aaa';
+    ctx.save(); ctx.shadowColor=rcol; ctx.shadowBlur=28;
+    drawCardSmall(po.card,px,py,cw,ch);
+    ctx.shadowBlur=0; ctx.restore();
+
+    if(po.timer===41) {
+      for(let i=0;i<22;i++){
+        const a=(Math.PI*2*i)/22, sp=2+Math.random()*5;
+        particles.push({x:cx,y:cy,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:1,col:rcol,r:2+Math.random()*3});
+      }
+    }
+
+    ctx.fillStyle=rcol; ctx.font='bold 16px Courier New'; ctx.textAlign='center';
+    ctx.fillText(po.card.name.toUpperCase(), cx, py+ch+24);
+    ctx.fillStyle='#667788'; ctx.font='12px Courier New';
+    ctx.fillText(po.card.rarity.toUpperCase(), cx, py+ch+42);
+    if(po.card.id==='air'){ctx.fillStyle='#884444';ctx.fillText("Can't be added to deck",cx,py+ch+60);}
+
+    if(po.timer>60&&Math.floor(po.timer/18)%2===0){
+      ctx.fillStyle='#aabbcc'; ctx.font='13px Courier New';
+      ctx.fillText('TAP / CLICK TO CONTINUE', cx, py+ch+(po.card.id==='air'?78:60));
+    }
+    if(clicked&&po.timer>40){save.cards.push(po.card.id);persist();packOpen=null;state='shop';}
+  }
+}
+
+function drawBuild() {
+  menuBg();
+  ctx.fillStyle='#e0e0ff'; ctx.font='bold 18px Courier New'; ctx.textAlign='left';
+  ctx.fillText('BUILD DECK', 10, 28);
+  drawBtn('BACK',700,10,90,30,'#222','#444');
+  if(clicked&&inBtn(700,10,90,30)){drag=null;state='menu';}
+
+  // Divider
+  ctx.strokeStyle='#223344'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(495,42); ctx.lineTo(495,595); ctx.stroke();
+
+  // ── Collection panel ──────────────────────────────────────────────
+  ctx.save(); ctx.beginPath(); ctx.rect(0,42,490,558); ctx.clip();
+
+  const ownedIds=[...new Set(save.cards)];
+  const cW=110,cH=90,cGap=6,cols=4;
+  ctx.fillStyle='#8899aa'; ctx.font='11px Courier New'; ctx.textAlign='left';
+  ctx.fillText(`YOUR CARDS (${ownedIds.length})`, 10, 58);
+
+  ownedIds.forEach((id,i)=>{
+    const col=i%cols, row=Math.floor(i/cols);
+    const cx2=10+col*(cW+cGap), cy2=66+row*(cH+cGap)-buildScroll;
+    if(cy2+cH<42||cy2>600) return;
+    const card=cardById(id); if(!card) return;
+    const inDeck=save.deck.includes(id);
+    if(drag&&drag.cardId===id&&drag.fromArea==='collection'){
+      ctx.save();ctx.globalAlpha=0.2;drawCardSmall(card,cx2,cy2,cW,cH,inDeck);ctx.restore();
+      return;
+    }
+    drawCardSmall(card,cx2,cy2,cW,cH,inDeck);
+  });
+  ctx.restore();
+
+  // Scrollbar
+  const rows=Math.ceil(ownedIds.length/cols);
+  const contH=rows*(cH+cGap), visH=520;
+  if(contH>visH){
+    const sbH=Math.max(30,visH*visH/contH);
+    const sbY=65+(buildScroll/(contH-visH))*(visH-sbH);
+    ctx.fillStyle='#223344'; ctx.fillRect(487,65,4,visH);
+    ctx.fillStyle='#667788'; ctx.fillRect(487,sbY,4,sbH);
+  }
+
+  // ── Deck panel ────────────────────────────────────────────────────
+  ctx.fillStyle='#8899aa'; ctx.font='11px Courier New'; ctx.textAlign='left';
+  ctx.fillText(`DECK (${save.deck.length}/5)`, 510, 58);
+
+  const sX=505,sW=285,sH=92,sGap=6;
+  for(let i=0;i<5;i++){
+    const sy=66+i*(sH+sGap);
+    const cid=save.deck[i], card=cid?cardById(cid):null;
+    if(drag&&drag.fromArea==='deck'&&drag.fromIndex===i){
+      ctx.save();ctx.globalAlpha=0.2;
+      if(card) drawCardSmall(card,sX,sy,sW,sH,true);
+      else     drawCardSmall(null,sX,sy,sW,sH);
+      ctx.restore();
+    } else {
+      drawCardSmall(card||null,sX,sy,sW,sH,!!card);
+    }
+    // Drop highlight
+    if(drag&&inRect(mouseX,mouseY,sX,sy,sW,sH)){
+      ctx.strokeStyle='#00ff88';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+      rr(sX,sy,sW,sH,6);ctx.stroke();ctx.setLineDash([]);ctx.lineWidth=1;
+    }
+  }
+
+  drawBtn('CLEAR DECK',505,570,285,22,'#330000','#550000');
+  if(clicked&&inBtn(505,570,285,22)){save.deck=[];persist();}
+
+  // Drag ghost
+  if(drag){
+    const gc=cardById(drag.cardId);
+    if(gc){ctx.save();ctx.globalAlpha=0.8;drawCardSmall(gc,dragX-55,dragY-45,cW,cH);ctx.restore();}
+  }
+  drawNotif();
+}
+
+function drawLevelSelect() {
+  menuBg();
+  ctx.fillStyle='#e0e0ff'; ctx.font='bold 20px Courier New'; ctx.textAlign='center';
+  ctx.fillText('SELECT LEVEL', W/2, 30);
+  drawBtn('BACK',10,10,80,30,'#222','#444');
+  if(clicked&&inBtn(10,10,80,30)) state='menu';
+
+  const tW=68,tH=42,gap=4,cols=10;
+  const gridW=cols*tW+(cols-1)*gap, sX=(W-gridW)/2, sY=46;
+  const unlocked=save.highestLevel;
+
+  for(let i=0;i<100;i++){
+    const c=i%cols,r=Math.floor(i/cols);
+    const tx=sX+c*(tW+gap), ty=sY+r*(tH+gap);
+    const avail=i<=unlocked;
+    const hover=avail&&inRect(mouseX,mouseY,tx,ty,tW,tH);
+    const twoC=(i+1)%5===0;
+    const beaten=i<unlocked;
+
+    ctx.fillStyle=avail?(hover?'#1e3a52':'#0f2030'):'#0a0a14';
+    ctx.strokeStyle=avail?(hover?'#55aadd':(twoC?'#996600':'#2a5a7a')):'#181828';
+    ctx.lineWidth=twoC&&avail?2:1;
+    rr(tx,ty,tW,tH,4);ctx.fill();ctx.stroke();ctx.lineWidth=1;
+
+    ctx.textAlign='center';
+    if(avail){
+      ctx.fillStyle=hover?'#88ddff':'#4499cc';
+      ctx.font=`bold 12px Courier New`;
+      ctx.fillText(`${i+1}`,tx+tW/2,ty+tH/2+(twoC||beaten?-4:4));
+      if(twoC){ctx.font='7px serif';ctx.fillText('⚔⚔',tx+tW/2,ty+tH-4);}
+      else if(beaten){ctx.fillStyle='#44cc88';ctx.font='9px Courier New';ctx.fillText('✓',tx+tW/2,ty+tH-4);}
+    } else {
+      ctx.fillStyle='#2a2a3a';ctx.font='11px Courier New';ctx.fillText('🔒',tx+tW/2,ty+tH/2+4);
+    }
+
+    if(avail&&clicked&&inRect(clickX,clickY,tx,ty,tW,tH)){
+      if(save.deck.length===0) showNotif('Add cards to your deck in BUILD!');
+      else if((i+1)%5===0&&save.deck.length<2) showNotif('Need 2+ cards for a 2v2 level!');
+      else startBattle(i);
+    }
+  }
+
+  ctx.fillStyle='#445566';ctx.font='11px Courier New';ctx.textAlign='center';
+  ctx.fillText(`Deck: ${save.deck.length}/5  ·  ⚔⚔ = 2v2 battle  ·  ${unlocked}/100 beaten`,W/2,500);
+  drawNotif();
+}
+
+function drawBattle() {
+  if(!battle) return;
+  ctx.fillStyle='#070710'; ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle='rgba(30,50,70,0.4)'; ctx.lineWidth=0.5;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  ctx.lineWidth=1;
+
+  ctx.fillStyle='#3a5a6a'; ctx.font='11px Courier New'; ctx.textAlign='left';
+  ctx.fillText(`Level ${battle.level+1}${battle.twoCard?' — 2v2':''} `, 10, 14);
+  ctx.fillStyle='#ffcc00'; ctx.textAlign='right';
+  ctx.fillText(`💰 $${save.money}`, W-10, 14);
+
+  // Enemy label
+  ctx.fillStyle='#cc4444'; ctx.font='bold 10px Courier New'; ctx.textAlign='center';
+  ctx.fillText('ENEMY', W/2, 26);
+
+  // Enemy cards
+  if(battle.twoCard){
+    drawCardFull(battle.enemyActive[0],80,30);
+    drawCardFull(battle.enemyActive[1]||null,290,30);
+  } else {
+    drawCardFull(battle.enemyActive[0],180,30);
+  }
+  ctx.fillStyle='#663333'; ctx.font='10px Courier New'; ctx.textAlign='right';
+  ctx.fillText(`Deck: ${battle.enemyDeck.length}`, W-10, 200);
+
+  // Log area
+  ctx.fillStyle='rgba(0,0,0,0.65)'; ctx.fillRect(0,200,W,94);
+  ctx.strokeStyle='#1a2a3a'; ctx.lineWidth=0.5;
+  ctx.strokeRect(0,200,W,94); ctx.lineWidth=1;
+  const logCols=['#e0e0ff','#8899aa','#556677','#334455'];
+  ctx.font='11px Courier New'; ctx.textAlign='left';
+  battle.log.slice(0,4).forEach((l,i)=>{ctx.fillStyle=logCols[i];ctx.fillText(l,14,218+i*18);});
+  ctx.fillStyle='#44ff88'; ctx.font='bold 10px Courier New'; ctx.textAlign='right';
+  const waiting2=battle.twoCard&&battle.playerActive.length>1&&battle.activePlayerIdx===1;
+  ctx.fillText(waiting2?`PICK FOR ${battle.playerActive[1]?.name||'Card 2'}↓`:'YOUR TURN ↓', W-14, 218);
+
+  // Player label
+  ctx.fillStyle='#44aa66'; ctx.font='bold 10px Courier New'; ctx.textAlign='center';
+  ctx.fillText('YOU', W/2, 312);
+
+  // Active card highlight in 2v2
+  if(battle.twoCard){
+    const hx=battle.activePlayerIdx===0?80:290;
+    ctx.strokeStyle='#00ff88'; ctx.lineWidth=2.5;
+    rr(hx-2,314,144,166,9); ctx.stroke(); ctx.lineWidth=1;
+    drawCardFull(battle.playerActive[0],80,316);
+    drawCardFull(battle.playerActive[1]||null,290,316);
+  } else {
+    drawCardFull(battle.playerActive[0],180,316);
+  }
+
+  ctx.fillStyle='#446644'; ctx.font='10px Courier New'; ctx.textAlign='left';
+  ctx.fillText(`Deck: ${battle.playerDeck.length}`, 10, 494);
+
+  // Move buttons
+  const ac=battle.playerActive[battle.activePlayerIdx];
+  if(ac) {
+    const moves=[ac.move1,ac.move2];
+    const icons={attack:'⚔',heal:'💚',buff_dmg:'⬆',buff_hp:'🛡',burn:'🔥',double_hit:'⚡',life_steal:'🩸',debuff:'💀',revive:'✨'};
+    [[10,502,375,78,0,'#001a2e','#003355','#224466','#55aadd'],
+     [415,502,375,78,1,'#1a0030','#330055','#442266','#aa55dd']].forEach(([mx,my,mw,mh,mi,base,hovBg,border,hovBorder])=>{
+      const m=moves[mi];
+      const h=inRect(mouseX,mouseY,mx,my,mw,mh);
+      ctx.fillStyle=h?hovBg:base; rr(mx,my,mw,mh,8); ctx.fill();
+      ctx.strokeStyle=h?hovBorder:border; ctx.lineWidth=1.5; rr(mx,my,mw,mh,8); ctx.stroke(); ctx.lineWidth=1;
+      ctx.fillStyle='#ddeeff'; ctx.font='bold 13px Courier New'; ctx.textAlign='left';
+      ctx.fillText(`${icons[m.type]||'●'} ${m.name}`, mx+12, my+22);
+      ctx.fillStyle='#889aaa'; ctx.font='10px Courier New';
+      ctx.fillText(m.desc, mx+12, my+40);
+      ctx.fillStyle='#446677'; ctx.font='9px Courier New';
+      ctx.fillText(m.type.replace('_',' ').toUpperCase(), mx+12, my+58);
+      if(mi===1){ctx.fillStyle='#334455';ctx.textAlign='right';ctx.fillText('MOVE 2',mx+mw-12,my+58);}
+      else{ctx.fillStyle='#334455';ctx.textAlign='left';ctx.fillText('MOVE 1',mx+mw-70,my+58);}
+    });
+    if(clicked){
+      if(inRect(clickX,clickY,10,502,375,78))  resolveRound(0);
+      if(inRect(clickX,clickY,415,502,375,78)) resolveRound(1);
+    }
+  }
+}
+
+function drawBattleResult() {
+  menuBg();
+  if(!battleResult){state='levelselect';return;}
+  ctx.save();
+  ctx.font='bold 50px Courier New'; ctx.textAlign='center';
+  const tg=ctx.createLinearGradient(0,170,0,230);
+  if(battleResult.won){tg.addColorStop(0,'#00ff88');tg.addColorStop(1,'#00aaff');}
+  else{tg.addColorStop(0,'#ff4444');tg.addColorStop(1,'#cc1111');}
+  ctx.fillStyle=tg; ctx.fillText(battleResult.won?'VICTORY!':'DEFEATED',W/2,210);
+  ctx.restore();
+
+  ctx.textAlign='center';
+  if(battleResult.won){
+    ctx.fillStyle='#aabbcc'; ctx.font='16px Courier New';
+    ctx.fillText(`Level ${battle.level+1} cleared!`,W/2,262);
+    ctx.fillStyle='#ffcc00'; ctx.font='bold 18px Courier New';
+    ctx.fillText(`+$${battleResult.moneyEarned}`,W/2,294);
+    ctx.fillStyle='#557788'; ctx.font='12px Courier New';
+    ctx.fillText(`Total: $${save.money}`,W/2,322);
+    drawBtn('CONTINUE',300,365,200,50,'#005533','#008855');
+    if(clicked&&inBtn(300,365,200,50)) state='levelselect';
+  } else {
+    ctx.fillStyle='#aabbcc'; ctx.font='15px Courier New';
+    ctx.fillText('You ran out of cards.',W/2,265);
+    ctx.fillStyle='#667788'; ctx.font='12px Courier New';
+    ctx.fillText('Buy packs in SHOP, or rebuild deck in BUILD.',W/2,295);
+    drawBtn('RETRY',185,365,160,50,'#550000','#880000');
+    drawBtn('MENU', 455,365,160,50,'#222','#444');
+    if(clicked){
+      if(inBtn(185,365,160,50)) startBattle(battle.level);
+      if(inBtn(455,365,160,50)) state='menu';
+    }
+  }
+}
+
+// ── Input ────────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e=>{
+  const r=canvas.getBoundingClientRect();
+  mouseX=(e.clientX-r.left)*(W/r.width);
+  mouseY=(e.clientY-r.top)*(H/r.height);
+  if(drag){dragX=mouseX;dragY=mouseY;}
+});
+canvas.addEventListener('click', e=>{
+  const r=canvas.getBoundingClientRect();
+  clicked=true;
+  clickX=(e.clientX-r.left)*(W/r.width);
+  clickY=(e.clientY-r.top)*(H/r.height);
+});
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  if(state==='build'&&mouseX<490){
+    const uid=[...new Set(save.cards)];
+    const maxS=Math.max(0,Math.ceil(uid.length/4)*96-500);
+    buildScroll=Math.max(0,Math.min(maxS,buildScroll+e.deltaY*0.5));
+  }
+},{passive:false});
+
+// Drag
+canvas.addEventListener('mousedown', e=>{
+  if(state!=='build') return;
+  const r=canvas.getBoundingClientRect();
+  const px=(e.clientX-r.left)*(W/r.width), py=(e.clientY-r.top)*(H/r.height);
+  initDrag(px,py);
+});
+canvas.addEventListener('mouseup', e=>{
+  if(!drag) return;
+  const r=canvas.getBoundingClientRect();
+  resolveDrop((e.clientX-r.left)*(W/r.width),(e.clientY-r.top)*(H/r.height));
+  drag=null;
+});
+
+function initDrag(px,py){
+  const uid=[...new Set(save.cards)];
+  const cW=110,cH=90,cGap=6,cols=4;
+  for(let i=0;i<uid.length;i++){
+    const col=i%cols,row=Math.floor(i/cols);
+    const cx2=10+col*(cW+cGap),cy2=66+row*(cH+cGap)-buildScroll;
+    if(inRect(px,py,cx2,cy2,cW,cH)){
+      drag={cardId:uid[i],fromArea:'collection',fromIndex:i,snapX:cx2,snapY:cy2};
+      dragX=px;dragY=py;return;
+    }
+  }
+  const sX=505,sW=285,sH=92,sGap=6;
+  for(let i=0;i<5;i++){
+    const sy=66+i*(sH+sGap);
+    if(save.deck[i]&&inRect(px,py,sX,sy,sW,sH)){
+      drag={cardId:save.deck[i],fromArea:'deck',fromIndex:i,snapX:sX,snapY:sy};
+      dragX=px;dragY=py;return;
+    }
+  }
+}
+
+function resolveDrop(px,py){
+  if(!drag) return;
+  const {cardId,fromArea,fromIndex}=drag;
+  const card=cardById(cardId);
+  if(!card) return;
+
+  if(px>=495){
+    const sX=505,sW=285,sH=92,sGap=6;
+    let dropped=false;
+    for(let i=0;i<5;i++){
+      const sy=66+i*(sH+sGap);
+      if(inRect(px,py,sX,sy,sW,sH)){
+        if(cardId==='air'){showNotif("Air cards can't go in your deck!");return;}
+        if(fromArea==='deck'){
+          if(fromIndex!==i){
+            const tmp=save.deck[i];
+            save.deck[i]=save.deck[fromIndex];
+            if(tmp!==undefined) save.deck[fromIndex]=tmp;
+            else save.deck.splice(fromIndex,1);
+          }
+        } else {
+          if(save.deck.includes(cardId)){showNotif('Already in deck!');return;}
+          if(save.deck[i]){save.deck[i]=cardId;}
+          else{
+            // fill at position i
+            while(save.deck.length<=i) save.deck.push(undefined);
+            save.deck[i]=cardId;
+            save.deck=save.deck.filter(x=>x!==undefined);
+          }
+        }
+        persist();dropped=true;break;
+      }
+    }
+    if(!dropped&&fromArea==='collection'){
+      if(cardId==='air'){showNotif("Air cards can't go in your deck!");return;}
+      if(save.deck.includes(cardId)){showNotif('Already in deck!');return;}
+      if(save.deck.length>=5){showNotif('Deck full! (5 max)');return;}
+      save.deck.push(cardId);persist();
+    }
+  } else if(px<490&&fromArea==='deck'){
+    save.deck.splice(fromIndex,1);persist();
+  }
+}
+
+// Touch
+let tStartX=0,tStartY=0,tLastX=0,tLastY=0,tMoved=false;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  const t=e.touches[0],r=canvas.getBoundingClientRect();
+  const tx=(t.clientX-r.left)*(W/r.width),ty=(t.clientY-r.top)*(H/r.height);
+  tStartX=tLastX=tx;tStartY=tLastY=ty;tMoved=false;
+  mouseX=tx;mouseY=ty;
+  if(state==='build') initDrag(tx,ty);
+},{passive:false});
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  const t=e.touches[0],r=canvas.getBoundingClientRect();
+  const tx=(t.clientX-r.left)*(W/r.width),ty=(t.clientY-r.top)*(H/r.height);
+  mouseX=tx;mouseY=ty;
+  if(drag){dragX=tx;dragY=ty;}
+  else if(state==='build'&&tx<490){
+    const uid=[...new Set(save.cards)];
+    const maxS=Math.max(0,Math.ceil(uid.length/4)*96-500);
+    buildScroll=Math.max(0,Math.min(maxS,buildScroll+(tLastY-ty)));
+  }
+  tLastX=tx;tLastY=ty;
+  if(Math.abs(tx-tStartX)>8||Math.abs(ty-tStartY)>8) tMoved=true;
+},{passive:false});
+canvas.addEventListener('touchend',e=>{
+  e.preventDefault();
+  if(drag){resolveDrop(tLastX,tLastY);drag=null;return;}
+  if(!tMoved){clicked=true;clickX=tLastX;clickY=tLastY;}
+},{passive:false});
+
+// ── Main loop ────────────────────────────────────────────────────────────────
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  switch(state){
+    case 'mobilecheck':   drawMobileCheck();   break;
+    case 'menu':          drawMenu();          break;
+    case 'shop':          drawShop();          break;
+    case 'packopen':      drawPackOpen();      break;
+    case 'build':         drawBuild();         break;
+    case 'levelselect':   drawLevelSelect();   break;
+    case 'battle':        drawBattle();        break;
+    case 'battle_result': drawBattleResult();  break;
+  }
+  // Particles
+  for(const p of particles){
+    p.x+=p.vx;p.y+=p.vy;p.vx*=0.91;p.vy*=0.91;p.life-=0.04;
+    if(p.life>0){ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();}
+  }
+  particles.splice(0,particles.length,...particles.filter(p=>p.life>0));
+  clicked=false;
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
