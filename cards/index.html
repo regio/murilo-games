@@ -1379,11 +1379,12 @@ canvas.addEventListener('touchmove',e=>{
     buildScroll=Math.max(0,Math.min(maxS,buildScroll+(tLastY-ty)));
   }
   tLastX=tx;tLastY=ty;
-  if(Math.abs(tx-tStartX)>8||Math.abs(ty-tStartY)>8) tMoved=true;
+  if(Math.abs(tx-tStartX)>18||Math.abs(ty-tStartY)>18) tMoved=true;
 },{passive:false});
 canvas.addEventListener('touchend',e=>{
   e.preventDefault();
-  if(drag){resolveDrop(tLastX,tLastY);drag=null;return;}
+  if(drag&&state==='build'){resolveDrop(tLastX,tLastY);drag=null;return;}
+  drag=null;
   if(!tMoved){
     clicked=true;clickX=tLastX;clickY=tLastY;
     if(state==='codes') codeEl.focus();
