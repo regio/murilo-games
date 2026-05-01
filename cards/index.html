@@ -12,6 +12,8 @@
 </head>
 <body>
 <canvas id="c"></canvas>
+<input id="codeEl" type="text" autocomplete="off" autocorrect="off" autocapitalize="off"
+  style="position:fixed;opacity:0;pointer-events:none;width:1px;height:1px;top:0;left:0;border:none;outline:none;">
 <script>
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d');
@@ -129,7 +131,7 @@ const CARDS = [
    move2:{name:'Venom',         type:'burn',     value:8,   desc:'Venom — burns 2 turns'}},
   {id:'s07',name:'Vulture',      pack:'sand',rarity:'uncommon',hp:37, dmg:15, emoji:'🦅',
    move1:{name:'Swoop',         type:'attack',   value:1.0, desc:'Diving strike'},
-   move2:{name:'Feast',         type:'life_steal',value:1.0,desc:'Drain life from enemy'}},
+   move2:{name:'Feast',         type:'life_steal',value:0.7,desc:'Drain life from enemy'}},
   {id:'s08',name:'Sand Manta',   pack:'sand',rarity:'uncommon',hp:48, dmg:12, emoji:'🦈',
    move1:{name:'Sweep',         type:'double_hit',value:8,  desc:'Wing sweep twice'},
    move2:{name:'Dust Wave',     type:'debuff',   value:0,   desc:'Sandblast removes buffs'}},
@@ -347,8 +349,8 @@ const PACKS = {
            weights:{common:40,uncommon:28,rare:20,epic:9,air:3}},
   snake:  {name:'Snake',  price:200, emoji:'🐍', col:'#44cc44', bg:'#081408', rarity_hint:'Rare odds up',
            weights:{common:40,uncommon:28,rare:20,epic:9,air:3}},
-  mythic: {name:'Mythic', price:500, emoji:'✨', col:'#ffaa00', bg:'#180e00', rarity_hint:'Mythic possible!',
-           weights:{mythic:15,epic:30,rare:25,uncommon:15,common:10,air:5}},
+  mythic: {name:'Mythic', price:800, emoji:'✨', col:'#ffaa00', bg:'#180e00', rarity_hint:'Mythic possible!',
+           weights:{common:6,uncommon:4,rare:2,epic:2,mythic:1,air:85}},
 };
 
 // ── Save data ────────────────────────────────────────────────────────────────
@@ -369,6 +371,8 @@ let dragX     = 0, dragY = 0;
 let buildScroll = 0;
 
 let packOpen  = null;  // {packId,phase:'flip'|'reveal',timer,card}
+let codeInput = '';
+let codeMsg   = '';
 let battle    = null;
 let battleResult = null;  // {won,moneyEarned}
 let reviveUsed = {};
@@ -545,7 +549,7 @@ function buildEnemyDeck(level) {
                    level<=80  ? ['common','uncommon','rare','epic'] :
                                 ['uncommon','rare','epic','mythic'];
   const pool = CARDS.filter(c=>rarities.includes(c.rarity)&&c.id!=='air');
-  const size = Math.min(5, 1+Math.floor(level/20));
+  const size = Math.min(5, 2+Math.floor(level/25));
   const deck = [];
   for(let i=0;i<size;i++) deck.push(pool[Math.floor(rand()*pool.length)].id);
   return deck;
@@ -607,7 +611,7 @@ function applyMove(move, atk, def) {
     case 'life_steal': {
       const d=Math.max(1,Math.floor(atk.dmg*move.value*mult));
       def.currentHp=Math.max(0,def.currentHp-d);
-      const h=Math.floor(d/2);
+      const h=Math.floor(d*0.3);
       atk.currentHp=Math.min(atk.hp,atk.currentHp+h);
       addLog(`${atk.name}: ${move.name} — ${d} dmg, +${h} HP`);
       break;
@@ -674,6 +678,21 @@ function enemyAI(enemy, target) {
   return off||moves[0];
 }
 
+function doEnemyTurn() {
+  if(!battle) return;
+  const allEnemies=[...battle.enemyActive];
+  for(let ei=0;ei<allEnemies.length;ei++) {
+    const ec=allEnemies[ei];
+    if(!ec||ec.currentHp<=0) continue;
+    const pt=battle.playerActive[Math.min(ei,battle.playerActive.length-1)];
+    if(!pt) continue;
+    const em=enemyAI(ec,pt);
+    applyMove(em,ec,pt);
+    tickStatus(ec); tickStatus(pt);
+    if(checkDeaths()) return;
+  }
+}
+
 function resolveRound(moveIdx) {
   if(!battle) return;
   const pCard = battle.playerActive[battle.activePlayerIdx];
@@ -689,21 +708,24 @@ function resolveRound(moveIdx) {
 
   if(battle.twoCard && battle.playerActive.length>1 && battle.activePlayerIdx===0) {
     battle.activePlayerIdx=1;
-    return; // wait for second card pick
+    return;
   }
-
-  // Enemy responds
   battle.activePlayerIdx=0;
-  const allEnemies=[...battle.enemyActive];
-  for(let ei=0;ei<allEnemies.length;ei++) {
-    const ec=allEnemies[ei];
-    if(!ec||ec.currentHp<=0) continue;
-    const pt=battle.playerActive[Math.min(ei,battle.playerActive.length-1)];
-    if(!pt) continue;
-    const em=enemyAI(ec,pt);
-    applyMove(em,ec,pt);
-    tickStatus(ec); tickStatus(pt);
-    if(checkDeaths()) return;
+  doEnemyTurn();
+}
+
+function doSwitch(deckIdx) {
+  if(!battle||deckIdx>=battle.playerDeck.length) return;
+  const newCard = battle.playerDeck.splice(deckIdx,1)[0];
+  const oldCard = battle.playerActive[battle.activePlayerIdx];
+  battle.playerActive[battle.activePlayerIdx] = newCard;
+  battle.playerDeck.push(oldCard);
+  addLog(`You switched to ${newCard.name}!`);
+  battle.switching = false;
+  if(battle.twoCard && battle.playerActive.length>1 && battle.activePlayerIdx===0) {
+    battle.activePlayerIdx=1;
+  } else {
+    battle.activePlayerIdx=0;
   }
 }
 
@@ -730,6 +752,7 @@ function startBattle(levelIdx) {
     playerActive: twoCard?pDeck.slice(0,2):[pDeck[0]].filter(Boolean),
     enemyActive:  twoCard?eDeck.slice(0,2):[eDeck[0]].filter(Boolean),
     activePlayerIdx:0,
+    switching:false,
     log:['Battle start!','','',''],
   };
   battleResult=null;
@@ -771,9 +794,10 @@ function drawMenu() {
   drawBtn('PLAY',  140,290,160,50,'#004466','#0077aa');
   drawBtn('BUILD', 320,290,160,50,'#224400','#447700');
   drawBtn('SHOP',  500,290,160,50,'#330044','#660088');
+  drawBtn('CODES', 320,358,160,36,'#1a1a00','#333300');
 
   ctx.fillStyle='#445566'; ctx.font='11px Courier New'; ctx.textAlign='center';
-  ctx.fillText(`Cards: ${[...new Set(save.cards)].length}  ·  Deck: ${save.deck.length}/5  ·  Levels beaten: ${save.highestLevel}/100`, W/2, 380);
+  ctx.fillText(`Cards: ${[...new Set(save.cards)].length}  ·  Deck: ${save.deck.length}/5  ·  Levels beaten: ${save.highestLevel}/100`, W/2, 420);
 
   if(clicked){
     if(inBtn(140,290,160,50)){
@@ -782,8 +806,58 @@ function drawMenu() {
     }
     if(inBtn(320,290,160,50)) state='build';
     if(inBtn(500,290,160,50)) state='shop';
+    if(inBtn(320,358,160,36)) enterCodes();
   }
   drawNotif();
+}
+
+function drawCodes() {
+  menuBg();
+  ctx.font='bold 32px Courier New'; ctx.textAlign='center';
+  ctx.fillStyle='#ddcc44'; ctx.fillText('ENTER CODE', W/2, 160);
+  ctx.fillStyle='#556677'; ctx.font='12px Courier New';
+  ctx.fillText('Type a code and press ENTER', W/2, 192);
+
+  // Input box
+  const bx=160,by=220,bw=480,bh=52;
+  ctx.fillStyle='#0a0a18'; rr(bx,by,bw,bh,8); ctx.fill();
+  ctx.strokeStyle='#445577'; ctx.lineWidth=2; rr(bx,by,bw,bh,8); ctx.stroke(); ctx.lineWidth=1;
+  ctx.fillStyle='#e0e0ff'; ctx.font='bold 22px Courier New'; ctx.textAlign='left';
+  const display = codeInput + (Math.floor(Date.now()/500)%2===0?'█':'');
+  ctx.fillText(display, bx+16, by+34);
+
+  // Feedback
+  if(codeMsg){
+    const ok=codeMsg.startsWith('✅');
+    ctx.fillStyle=ok?'#44ff88':'#ff5555'; ctx.font='bold 14px Courier New'; ctx.textAlign='center';
+    ctx.fillText(codeMsg, W/2, 308);
+  }
+
+  drawBtn('BACK',10,10,80,30,'#222','#444');
+  if(clicked&&inBtn(10,10,80,30)) exitCodes();
+}
+
+function redeemCode(code) {
+  switch(code.toLowerCase().trim()) {
+    case 'allan': {
+      const allIds = CARDS.filter(c=>c.id!=='air').map(c=>c.id);
+      const existing = new Set(save.cards);
+      allIds.forEach(id=>{ if(!existing.has(id)) save.cards.push(id); });
+      persist();
+      codeMsg = '✅ You got every card!';
+      break;
+    }
+    case 'allanno': {
+      const unique = [...new Set(save.cards)];
+      save.cards = unique;
+      save.deck = save.deck.filter(id=>save.cards.includes(id));
+      persist();
+      codeMsg = '✅ Removed duplicate cards!';
+      break;
+    }
+    default:
+      codeMsg = '❌ Unknown code';
+  }
 }
 
 function drawShop() {
@@ -1046,30 +1120,57 @@ function drawBattle() {
   ctx.fillStyle='#446644'; ctx.font='10px Courier New'; ctx.textAlign='left';
   ctx.fillText(`Deck: ${battle.playerDeck.length}`, 10, 494);
 
-  // Move buttons
+  // Move buttons + SWITCH
   const ac=battle.playerActive[battle.activePlayerIdx];
-  if(ac) {
+  if(ac && !battle.switching) {
     const moves=[ac.move1,ac.move2];
     const icons={attack:'⚔',heal:'💚',buff_dmg:'⬆',buff_hp:'🛡',burn:'🔥',double_hit:'⚡',life_steal:'🩸',debuff:'💀',revive:'✨'};
-    [[10,502,375,78,0,'#001a2e','#003355','#224466','#55aadd'],
-     [415,502,375,78,1,'#1a0030','#330055','#442266','#aa55dd']].forEach(([mx,my,mw,mh,mi,base,hovBg,border,hovBorder])=>{
+    [[10,500,375,64,0,'#001a2e','#003355','#224466','#55aadd'],
+     [415,500,375,64,1,'#1a0030','#330055','#442266','#aa55dd']].forEach(([mx,my,mw,mh,mi,base,hovBg,border,hovBorder])=>{
       const m=moves[mi];
       const h=inRect(mouseX,mouseY,mx,my,mw,mh);
       ctx.fillStyle=h?hovBg:base; rr(mx,my,mw,mh,8); ctx.fill();
       ctx.strokeStyle=h?hovBorder:border; ctx.lineWidth=1.5; rr(mx,my,mw,mh,8); ctx.stroke(); ctx.lineWidth=1;
       ctx.fillStyle='#ddeeff'; ctx.font='bold 13px Courier New'; ctx.textAlign='left';
-      ctx.fillText(`${icons[m.type]||'●'} ${m.name}`, mx+12, my+22);
+      ctx.fillText(`${icons[m.type]||'●'} ${m.name}`, mx+12, my+20);
       ctx.fillStyle='#889aaa'; ctx.font='10px Courier New';
-      ctx.fillText(m.desc, mx+12, my+40);
+      ctx.fillText(m.desc, mx+12, my+36);
       ctx.fillStyle='#446677'; ctx.font='9px Courier New';
-      ctx.fillText(m.type.replace('_',' ').toUpperCase(), mx+12, my+58);
-      if(mi===1){ctx.fillStyle='#334455';ctx.textAlign='right';ctx.fillText('MOVE 2',mx+mw-12,my+58);}
-      else{ctx.fillStyle='#334455';ctx.textAlign='left';ctx.fillText('MOVE 1',mx+mw-70,my+58);}
+      ctx.fillText(m.type.replace('_',' ').toUpperCase(), mx+12, my+52);
     });
+    // SWITCH button
+    const canSwitch = battle.playerDeck.length > 0;
+    const sh=inRect(mouseX,mouseY,300,572,200,24);
+    ctx.fillStyle=canSwitch?(sh?'#1a3a1a':'#0d1f0d'):'#111';
+    rr(300,572,200,24,6); ctx.fill();
+    ctx.strokeStyle=canSwitch?(sh?'#44cc44':'#224422'):'#222';
+    ctx.lineWidth=1; rr(300,572,200,24,6); ctx.stroke();
+    ctx.fillStyle=canSwitch?'#66dd66':'#445544'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText(canSwitch?'↔ SWITCH CARD':'↔ SWITCH (no cards)', 400, 588);
     if(clicked){
-      if(inRect(clickX,clickY,10,502,375,78))  resolveRound(0);
-      if(inRect(clickX,clickY,415,502,375,78)) resolveRound(1);
+      if(inRect(clickX,clickY,10,500,375,64))  resolveRound(0);
+      if(inRect(clickX,clickY,415,500,375,64)) resolveRound(1);
+      if(inRect(clickX,clickY,300,572,200,24)&&canSwitch) battle.switching=true;
     }
+  }
+
+  // Switching overlay
+  if(battle.switching) {
+    ctx.fillStyle='rgba(0,0,0,0.85)'; ctx.fillRect(0,294,W,306);
+    ctx.fillStyle='#aaccff'; ctx.font='bold 14px Courier New'; ctx.textAlign='center';
+    ctx.fillText('SWITCH TO:', W/2, 318);
+    const deck=battle.playerDeck;
+    const cardW=140,cardH=90,gap=12;
+    const totalW=deck.length*(cardW+gap)-gap;
+    let sx=(W-totalW)/2;
+    deck.forEach((c,i)=>{
+      drawCardSmall(c,sx,328,cardW,cardH);
+      if(inRect(mouseX,mouseY,sx,328,cardW,cardH)){ctx.strokeStyle='#00ff88';ctx.lineWidth=2;rr(sx,328,cardW,cardH,6);ctx.stroke();ctx.lineWidth=1;}
+      if(clicked&&inRect(clickX,clickY,sx,328,cardW,cardH)) doSwitch(i);
+      sx+=cardW+gap;
+    });
+    drawBtn('CANCEL',330,432,140,28,'#331111','#551111');
+    if(clicked&&inBtn(330,432,140,28)) battle.switching=false;
   }
 }
 
@@ -1129,6 +1230,24 @@ canvas.addEventListener('wheel', e=>{
     buildScroll=Math.max(0,Math.min(maxS,buildScroll+e.deltaY*0.5));
   }
 },{passive:false});
+
+// Code input
+const codeEl = document.getElementById('codeEl');
+codeEl.addEventListener('input', ()=>{
+  codeInput = codeEl.value.slice(0,24);
+  codeMsg = '';
+});
+codeEl.addEventListener('keydown', e=>{
+  if(e.key==='Enter'){redeemCode(codeInput);codeInput='';codeEl.value='';e.preventDefault();}
+});
+window.addEventListener('keydown', e=>{
+  if(state!=='codes') return;
+  if(e.key==='Backspace'){codeInput=codeInput.slice(0,-1);codeMsg='';codeEl.value=codeInput;}
+  else if(e.key==='Enter'){redeemCode(codeInput);codeInput='';codeEl.value='';}
+  else if(e.key.length===1&&codeInput.length<24){codeInput+=e.key;codeMsg='';codeEl.value=codeInput;}
+});
+function enterCodes(){codeInput='';codeMsg='';codeEl.value='';codeEl.style.pointerEvents='auto';codeEl.focus();state='codes';}
+function exitCodes(){codeEl.style.pointerEvents='none';codeEl.blur();state='menu';}
 
 // Drag
 canvas.addEventListener('mousedown', e=>{
@@ -1236,7 +1355,10 @@ canvas.addEventListener('touchmove',e=>{
 canvas.addEventListener('touchend',e=>{
   e.preventDefault();
   if(drag){resolveDrop(tLastX,tLastY);drag=null;return;}
-  if(!tMoved){clicked=true;clickX=tLastX;clickY=tLastY;}
+  if(!tMoved){
+    clicked=true;clickX=tLastX;clickY=tLastY;
+    if(state==='codes') codeEl.focus();
+  }
 },{passive:false});
 
 // ── Main loop ────────────────────────────────────────────────────────────────
@@ -1251,6 +1373,7 @@ function loop(){
     case 'levelselect':   drawLevelSelect();   break;
     case 'battle':        drawBattle();        break;
     case 'battle_result': drawBattleResult();  break;
+    case 'codes':         drawCodes();         break;
   }
   // Particles
   for(const p of particles){
