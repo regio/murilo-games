@@ -777,18 +777,55 @@ function startBattle(levelIdx) {
 function drawMobileCheck() {
   menuBg();
   ctx.font='bold 30px Courier New'; ctx.textAlign='center';
-  ctx.fillStyle='#e0e0ff'; ctx.fillText('ARE YOU ON MOBILE?', W/2, 220);
+  ctx.fillStyle='#e0e0ff'; ctx.fillText('ARE YOU ON A PHONE?', W/2, 220);
   ctx.fillStyle='#667788'; ctx.font='13px Courier New';
   ctx.fillText('Choose your control scheme', W/2, 256);
   drawBtn('YES',210,300,150,52);
   drawBtn('NO', 440,300,150,52);
   ctx.fillStyle='#445566'; ctx.font='11px Courier New';
-  ctx.fillText('Mobile: tap to interact   Desktop: mouse + drag', W/2, 400);
+  ctx.fillText('Phone: tap to interact   Desktop: mouse + drag', W/2, 400);
   if(clicked){
-    if(inBtn(210,300,150,52)){isMobile=true;  state='menu';}
+    if(inBtn(210,300,150,52)){isMobile=true; state='turnphone';}
     if(inBtn(440,300,150,52)){isMobile=false; state='menu';}
   }
 }
+
+function isLandscape() { return window.innerWidth > window.innerHeight; }
+
+function drawTurnPhone() {
+  menuBg();
+  if(isLandscape()){state='menu';return;}
+  // Animated phone rotation illustration
+  const cx=W/2, cy=260;
+  const t=Date.now()/1000;
+  const angle = Math.sin(t*1.8)*0.35 - 0.6;
+  ctx.save();
+  ctx.translate(cx,cy);
+  ctx.rotate(angle);
+  // Phone outline (portrait shape)
+  ctx.fillStyle='#1a2a3a'; ctx.strokeStyle='#4488aa'; ctx.lineWidth=3;
+  rr(-28,-50,56,90,8); ctx.fill(); ctx.stroke();
+  // Screen
+  ctx.fillStyle='#0a1a2a'; rr(-22,-44,44,78,4); ctx.fill();
+  // Home button
+  ctx.fillStyle='#334455'; ctx.beginPath(); ctx.arc(0,34,5,0,Math.PI*2); ctx.fill();
+  ctx.restore();
+  // Arrow hint
+  ctx.fillStyle='#44aaff'; ctx.font='32px serif'; ctx.textAlign='center';
+  ctx.fillText('↻', cx+80, cy+10);
+  ctx.fillStyle='#e0e0ff'; ctx.font='bold 22px Courier New'; ctx.textAlign='center';
+  ctx.fillText('TURN YOUR PHONE', W/2, cy+90);
+  ctx.fillText('SIDEWAYS', W/2, cy+118);
+  ctx.fillStyle='#667788'; ctx.font='12px Courier New';
+  ctx.fillText('The game is best in landscape mode', W/2, cy+146);
+  // Auto-advance on rotate
+  drawBtn('SKIP →', 310, cy+168, 180, 36, '#1a2a1a','#2a4a2a');
+  if(clicked && inBtn(310,cy+168,180,36)) state='menu';
+}
+
+window.addEventListener('orientationchange', ()=>{
+  setTimeout(()=>{ if(state==='turnphone'&&isLandscape()) state='menu'; }, 150);
+});
 
 function drawMenu() {
   menuBg();
@@ -1396,6 +1433,7 @@ function loop(){
   ctx.clearRect(0,0,W,H);
   switch(state){
     case 'mobilecheck':   drawMobileCheck();   break;
+    case 'turnphone':     drawTurnPhone();     break;
     case 'menu':          drawMenu();          break;
     case 'shop':          drawShop();          break;
     case 'packopen':      drawPackOpen();      break;
