@@ -30,7 +30,8 @@ window.addEventListener('orientationchange', () => setTimeout(fitCanvas, 120));
 fitCanvas();
 
 // ── Utilities ────────────────────────────────────────────────────────────────
-function inRect(px,py,x,y,w,h) { return px>=x&&px<=x+w&&py>=y&&py<=y+h; }
+let YSHIFT = 0;
+function inRect(px,py,x,y,w,h) { return px>=x&&px<=x+w&&(py-YSHIFT)>=y&&(py-YSHIFT)<=y+h; }
 function inBtn(x,y,w,h) { return inRect(clickX,clickY,x,y,w,h); }
 
 function rr(x,y,w,h,r) {
@@ -1431,6 +1432,9 @@ canvas.addEventListener('touchend',e=>{
 // ── Main loop ────────────────────────────────────────────────────────────────
 function loop(){
   ctx.clearRect(0,0,W,H);
+  YSHIFT = isMobile ? -30 : 0;
+  ctx.save();
+  ctx.translate(0, YSHIFT);
   switch(state){
     case 'mobilecheck':   drawMobileCheck();   break;
     case 'turnphone':     drawTurnPhone();     break;
@@ -1449,6 +1453,7 @@ function loop(){
     if(p.life>0){ctx.save();ctx.globalAlpha=p.life;ctx.fillStyle=p.col;ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fill();ctx.restore();}
   }
   particles.splice(0,particles.length,...particles.filter(p=>p.life>0));
+  ctx.restore();
   clicked=false;
   requestAnimationFrame(loop);
 }
