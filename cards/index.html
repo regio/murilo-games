@@ -1432,7 +1432,13 @@ canvas.addEventListener('touchend',e=>{
 // ── Main loop ────────────────────────────────────────────────────────────────
 function loop(){
   ctx.clearRect(0,0,W,H);
-  YSHIFT = isMobile ? -30 : 0;
+  if(isMobile){
+    const s = Math.min(window.innerWidth/W, window.innerHeight/H);
+    const visH = window.innerHeight/s;
+    YSHIFT = Math.round((visH-H)/2);
+  } else {
+    YSHIFT = 0;
+  }
   ctx.save();
   ctx.translate(0, YSHIFT);
   switch(state){
